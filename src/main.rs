@@ -101,7 +101,8 @@ impl IconForgeNativeApp {
     fn apply_preset(&mut self, name: &str) {
         self.active_preset = name.into();
         match name {
-            "WinUI 3 Fluent" => { self.spec.shape = Shape::WinUi; self.spec.tile_scale = 0.84; self.spec.bg_primary=[36,92,150]; self.spec.bg_secondary=[18,44,78]; self.spec.glyph_color=[245,248,255]; self.spec.glyph_scale=0.56; }
+            "macOS Tahoe Glass" => { self.spec.shape=Shape::Squircle; self.spec.tile_scale=0.805; self.spec.bg_style="mesh-aurora".into(); self.spec.bg_primary=[59,130,246]; self.spec.bg_secondary=[139,92,246]; self.spec.bg_accent=[236,72,153]; self.spec.lighting="glass-reflex".into(); self.spec.rim_light_opacity=0.55; self.spec.glyph_color=[255,255,255]; self.spec.glyph_scale=0.65; },
+            "WinUI 3 Fluent" => { self.spec.shape = Shape::WinUi; self.spec.bg_style="acrylic-glass".into(); self.spec.lighting="chamfer-edge".into(); self.spec.shadow_mode="winui-diffuse".into(); self.spec.tile_scale = 0.84; self.spec.bg_primary=[36,92,150]; self.spec.bg_secondary=[18,44,78]; self.spec.glyph_color=[245,248,255]; self.spec.glyph_scale=0.56; }
             "iOS 18 Full-Bleed" => { self.spec.shape = Shape::IosSquircle; self.spec.tile_scale=0.96; self.spec.bg_primary=[115,70,210]; self.spec.bg_secondary=[35,24,90]; self.spec.glyph_color=[255,255,255]; }
             "Cyber Slate" => { self.spec.shape=Shape::Squircle; self.spec.tile_scale=0.805; self.spec.bg_primary=[20,38,55]; self.spec.bg_secondary=[8,15,26]; self.spec.glyph_color=[49,220,190]; }
             "Titanium Matte" => { self.spec.shape=Shape::Squircle; self.spec.bg_primary=[105,112,122]; self.spec.bg_secondary=[32,36,44]; self.spec.glyph_color=[235,240,246]; }
@@ -175,7 +176,7 @@ impl eframe::App for IconForgeNativeApp {
                 ui.label("Name"); if ui.text_edit_singleline(&mut self.spec.name).changed(){self.needs_rerender=true;}
                 ui.label("Presets");
                 egui::ComboBox::from_id_salt("preset").selected_text(&self.active_preset).show_ui(ui,|ui|{
-                    for p in ["macOS 27 Pro","WinUI 3 Fluent","iOS 18 Full-Bleed","Cyber Slate","Titanium Matte","Retro 98"] {
+                    for p in ["macOS 27 Pro","macOS Tahoe Glass","WinUI 3 Fluent","iOS 18 Full-Bleed","Cyber Slate","Titanium Matte","Material You Adaptive","Retro 98"] {
                         if ui.selectable_label(self.active_preset==p,p).clicked(){self.apply_preset(p);}
                     }
                 });
