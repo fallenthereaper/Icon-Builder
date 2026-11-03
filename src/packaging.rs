@@ -44,9 +44,7 @@ Contents:\
  zip.start_file("README.md",options.clone())?;zip.write_all(readme.as_bytes())?;zip.finish()?;Ok(())
 }
 fn safe_name(name:&str)->String{let value:String=name.chars().map(|c|if c.is_ascii_alphanumeric()||c=='-'||c=='_'{c}else{'_'}).collect();if value.is_empty(){"icon".into()}else{value}}
-fn json_escape(value:&str)->String{value.replace('\\',"\\\\").replace('"',"\\\"").replace('
-',"\
-")}
+fn json_escape(value:&str)->String{value.replace('\\',"\\\\").replace('"',"\\\"").replace('\n',"\\n")}
 
 pub fn extract_palette(image:&RgbaImage)->([u8;3],[u8;3],[u8;3],[u8;3]){
  let(mut sums,mut count)=([0u64;3],0u64);let(mut vivid,best0)=([56u8,189,248],-1.0f32);let mut best=best0;
