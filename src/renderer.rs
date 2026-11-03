@@ -215,3 +215,19 @@ pub fn parse_ico_file(path:&Path)->Result<Vec<IcoEntry>,Box<dyn std::error::Erro
     entries.sort_by(|a,b|b.width.cmp(&a.width).then(b.bit_depth.cmp(&a.bit_depth)));
     Ok(entries)
 }
+
+
+pub fn load_svg_file(path:&Path)->Result<RgbaImage,Box<dyn std::error::Error>>{
+    let mut options=resvg::usvg::Options::default();
+    options.resources_dir=path.parent().map(|p|p.to_path_buf());
+    options.fontdb_mut().load_system_fonts();
+    let data=std::fs::read(path)?;
+    let tree=resvg::usvg::Tree::from_data(&data,&options)?;
+    let source_size=tree.size();
+    let scale=(1024.0/source_size.width().max(source_size.height())).min(1.0);
+    let width=(source_size.width()*scale).ceil().max(1.0) as u32;
+    let height=(source_size.height()*scale).ceil().max(1.0) as u32;
+    let mut pixmap=resvg::tiny_skia::Pixmap::new(width,height).ok_or("Could not allocate SVG render surface")?;
+    resvg::render(&tree,resvg::tiny_skia::Transform::from_scale(scale,scale),&mut pixmap.as_mut());
+    RgbaImage::from_raw(width,height,pixmap.take()).ok_or_else(||"SVG renderer returned an invalid pixel buffer".into())
+}
