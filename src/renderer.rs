@@ -10,18 +10,19 @@ impl Shape {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct IconSpec {
     pub name:String, pub shape:Shape, pub superellipse_n:f32, pub tile_scale:f32, pub corner_radius:f32,
     pub bg_primary:[u8;3],pub bg_secondary:[u8;3],pub bg_accent:[u8;3],pub gradient_angle_deg:f32,
     pub rim_light_opacity:f32,pub shadow_blur:f32,pub shadow_offset_y:f32,pub shadow_opacity:f32,
     pub glyph_scale:f32,pub glyph_color:[u8;3],pub glyph_offset_x:f32,pub glyph_offset_y:f32,pub glyph_rotation:f32,pub brightness:f32,pub contrast:f32,pub saturation:f32,pub hue_rotate:f32,
-    pub bg_style:String,pub bg_noise:bool,pub bg_noise_opacity:f32,pub lighting:String,pub bevel_thickness:f32,pub reflex_opacity:f32,pub inner_shadow_opacity:f32,pub glyph_shadow:bool,pub glyph_shadow_blur:f32,pub glyph_shadow_opacity:f32,pub glyph_emboss:bool,pub shadow_color:[u8;3],pub shadow_mode:String,pub badge:String,pub badge_color:[u8;3],pub badge_position:String,
+    pub bg_style:String,pub bg_noise:bool,pub bg_noise_opacity:f32,pub lighting:String,pub bevel_thickness:f32,pub reflex_opacity:f32,pub inner_shadow_opacity:f32,pub glyph_shadow:bool,pub glyph_shadow_blur:f32,pub glyph_shadow_opacity:f32,pub glyph_emboss:bool,pub shadow_color:[u8;3],pub shadow_mode:String,pub badge:String,pub badge_color:[u8;3],pub badge_text:String,pub badge_text_color:[u8;3],pub badge_position:String,
 }
 impl Default for IconSpec {
     fn default()->Self{Self{name:"IconForgeApp".into(),shape:Shape::Squircle,superellipse_n:4.5,tile_scale:0.805,corner_radius:0.224,
         bg_primary:[30,32,41],bg_secondary:[19,20,26],bg_accent:[11,12,16],gradient_angle_deg:145.0,
         rim_light_opacity:0.38,shadow_blur:32.0,shadow_offset_y:22.0,shadow_opacity:0.28,glyph_scale:0.62,glyph_color:[56,189,248],
-        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),bg_noise:true,bg_noise_opacity:0.04,lighting:"liquid-specular".into(),bevel_thickness:1.5,reflex_opacity:0.15,inner_shadow_opacity:0.0,glyph_shadow:true,glyph_shadow_blur:14.0,glyph_shadow_opacity:0.45,glyph_emboss:true,shadow_color:[0,0,0],shadow_mode:"soft-dual".into(),badge:"none".into(),badge_color:[245,158,11],badge_position:"top-right".into()}}
+        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),bg_noise:true,bg_noise_opacity:0.04,lighting:"liquid-specular".into(),bevel_thickness:1.5,reflex_opacity:0.15,inner_shadow_opacity:0.0,glyph_shadow:true,glyph_shadow_blur:14.0,glyph_shadow_opacity:0.45,glyph_emboss:true,shadow_color:[0,0,0],shadow_mode:"soft-dual".into(),badge:"none".into(),badge_color:[245,158,11],badge_text:String::new(),badge_text_color:[255,255,255],badge_position:"top-right".into()}}
 }
 
 fn mix(a:f32,b:f32,t:f32)->f32{a+(b-a)*t.clamp(0.0,1.0)}
@@ -111,6 +112,32 @@ fn rasterize_text_mask(text:&str,size:u32,scale:f32)->Option<Vec<u8>> {
     Some(mask)
 }
 
+fn draw_centered_text(image:&mut RgbaImage,text:&str,cx:f32,cy:f32,max_width:f32,font_px:f32,color:[u8;3]) {
+    let Some(font)=system_ui_font() else{return;};
+    let chars:Vec<char>=text.chars().take(12).collect();
+    if chars.is_empty(){return;}
+    let mut px=font_px.max(5.0);
+    let mut width:f32=chars.iter().map(|ch|font.metrics(*ch,px).advance_width).sum();
+    if width>max_width {px*=max_width/width;width=chars.iter().map(|ch|font.metrics(*ch,px).advance_width).sum();}
+    let Some(line)=font.horizontal_line_metrics(px) else{return;};
+    let baseline=cy+(line.ascent+line.descent)*0.5;
+    let mut cursor=cx-width*0.5;
+    for ch in chars {
+        let (metrics,bitmap)=font.rasterize(ch,px);
+        let left=(cursor+metrics.xmin as f32).round() as i32;
+        let top=(baseline-metrics.ymin as f32-metrics.height as f32).round() as i32;
+        for gy in 0..metrics.height {for gx in 0..metrics.width {
+            let x=left+gx as i32;let y=top+gy as i32;
+            if x<0||y<0||x>=image.width() as i32||y>=image.height() as i32{continue;}
+            let alpha=bitmap[gy*metrics.width+gx] as f32/255.0;
+            if alpha<=0.0{continue;}
+            let dst=image.get_pixel_mut(x as u32,y as u32);
+            for channel in 0..3{dst[channel]=mix(dst[channel] as f32,color[channel] as f32,alpha) as u8;}
+        }}
+        cursor+=metrics.advance_width;
+    }
+}
+
 fn text_mask_coverage(mask:&[u8],size:u32,x:f32,y:f32)->f32 {
     let px=((x+1.0)*0.5*size as f32).floor() as i32;
     let py=((y+1.0)*0.5*size as f32).floor() as i32;
@@ -198,17 +225,31 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
     }
     // Badge is rendered after the clipped tile, matching the original overlay layer.
     if spec.badge != "none" {
-        let br = (size as f32 * 0.105).max(2.0);
-        let (cx, cy) = match spec.badge_position.as_str() {
-            "top-left" => (size as f32 * 0.19, size as f32 * 0.19),
-            "bottom-left" => (size as f32 * 0.19, size as f32 * 0.81),
-            "bottom-right" => (size as f32 * 0.81, size as f32 * 0.81),
-            _ => (size as f32 * 0.81, size as f32 * 0.19),
+        let (cx,cy)=match spec.badge_position.as_str(){
+            "top-left"=>(size as f32*0.19,size as f32*0.19),
+            "bottom-left"=>(size as f32*0.19,size as f32*0.81),
+            "bottom-right"=>(size as f32*0.81,size as f32*0.81),
+            _=>(size as f32*0.81,size as f32*0.19),
         };
-        for y in 0..size { for x in 0..size {
-            let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
-            if d <= br { out.put_pixel(x, y, Rgba([spec.badge_color[0], spec.badge_color[1], spec.badge_color[2], 255])); }
-        }}
+        if spec.badge=="dot" {
+            let radius=(size as f32*0.105).max(2.0);
+            for y in 0..size {for x in 0..size {
+                let d=((x as f32+0.5-cx).powi(2)+(y as f32+0.5-cy).powi(2)).sqrt();
+                if d<=radius {out.put_pixel(x,y,Rgba([spec.badge_color[0],spec.badge_color[1],spec.badge_color[2],255]));}
+            }}
+        } else {
+            let label=if !spec.badge_text.trim().is_empty(){spec.badge_text.trim()}else{match spec.badge.as_str(){"beta"=>"BETA","dev"=>"DEV","pro"=>"PRO","windows"=>"WIN","custom"=>"CUSTOM",_=>"NEW"}};
+            let height=(size as f32*0.16).max(8.0);
+            let width=(label.chars().count() as f32*height*0.58+height*0.82).clamp(height*1.35,size as f32*0.48);
+            let radius=height*0.5;
+            for y in 0..size {for x in 0..size {
+                let dx=(x as f32+0.5-cx).abs();
+                let dy=(y as f32+0.5-cy).abs();
+                let inside=if dx<=width*0.5-radius {dy<=radius}else{(dx-(width*0.5-radius)).powi(2)+dy*dy<=radius*radius};
+                if inside {out.put_pixel(x,y,Rgba([spec.badge_color[0],spec.badge_color[1],spec.badge_color[2],255]));}
+            }}
+            draw_centered_text(&mut out,label,cx,cy,width*0.82,height*0.58,spec.badge_text_color);
+        }
     }
     out
 }
