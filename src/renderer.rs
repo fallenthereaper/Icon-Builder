@@ -138,6 +138,44 @@ fn draw_centered_text(image:&mut RgbaImage,text:&str,cx:f32,cy:f32,max_width:f32
     }
 }
 
+fn builtin_glyph_paths(name:&str)->Option<&'static [&'static str]> {
+    Some(match name {
+        "Layers"=>&["M12 2L2 7l10 5 10-5-10-5z","M2 17l10 5 10-5","M2 12l10 5 10-5"],
+        "Terminal"=>&["M4 17l6-6-6-6","M12 19h8"],
+        "Code2"=>&["M18 16l4-4-4-4","M6 8l-4 4 4 4","M14.5 4l-5 16"],
+        "Cpu"=>&["M4 4h16v16H4z","M9 9h6v6H9z","M9 1v3","M15 1v3","M9 20v3","M15 20v3","M20 9h3","M20 14h3","M1 9h3","M1 14h3"],
+        "Database"=>&["M21 5c0 1.66-4 3-9 3s-9-1.34-9-3 4-3 9-3 9 1.34 9 3z","M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5","M3 12c0 1.66 4 3 9 3s9-1.34 9-3"],
+        "Rocket"=>&["M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z","M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z","M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0","M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"],
+        "ShieldCheck"=>&["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z","M9 12l2 2 4-4"],
+        "Sparkles"=>&["M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z","M20 3v4","M22 5h-4","M4 17v2","M5 18H3"],
+        "CloudLightning"=>&["M6 16.326A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.973","M13 12l-3 5h4l-3 5"],
+        "Box"=>&["M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z","M3.27 6.96L12 12.01l8.73-5.05","M12 22.08V12"],
+        "Globe"=>&["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z","M2 12h20","M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"],
+        "Gamepad2"=>&["M6 12h4","M8 10v4","M15 13h.01","M18 11h.01","M18 11a4 4 0 0 0-4-4H10a4 4 0 0 0-4 4v2a4 4 0 0 0 2 3.46l1.2.6a2 2 0 0 0 1.8 0l1-.5a2 2 0 0 1 2 0l1 .5a2 2 0 0 0 1.8 0l1.2-.6A4 4 0 0 0 20 13v-2z"],
+        _=>return None,
+    })
+}
+
+fn rasterize_builtin_glyph_mask(name:&str,size:u32,scale:f32)->Option<Vec<u8>> {
+    let paths=builtin_glyph_paths(name)?;
+    let mut svg=String::from("<svg xmlns='http://www.w3.org/2000/svg' width='");
+    svg.push_str(&size.to_string());
+    svg.push_str("' height='");
+    svg.push_str(&size.to_string());
+    svg.push_str("' viewBox='0 0 24 24'><g fill='none' stroke='white' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round' transform='translate(12 12) scale(");
+    svg.push_str(&format!("{:.5}",scale.clamp(0.25,1.2)));
+    svg.push_str(") translate(-12 -12)'>");
+    for path in paths {svg.push_str("<path d='");svg.push_str(path);svg.push_str("'/>");}
+    svg.push_str("</g></svg>");
+    let mut options=resvg::usvg::Options::default();
+    options.fontdb_mut().load_system_fonts();
+    let tree=resvg::usvg::Tree::from_data(svg.as_bytes(),&options).ok()?;
+    let mut pixmap=resvg::tiny_skia::Pixmap::new(size,size)?;
+    resvg::render(&tree,resvg::tiny_skia::Transform::identity(),&mut pixmap.as_mut());
+    let rgba=pixmap.take();
+    Some(rgba.chunks_exact(4).map(|pixel|pixel[3]).collect())
+}
+
 fn text_mask_coverage(mask:&[u8],size:u32,x:f32,y:f32)->f32 {
     let px=((x+1.0)*0.5*size as f32).floor() as i32;
     let py=((y+1.0)*0.5*size as f32).floor() as i32;
@@ -146,7 +184,7 @@ fn text_mask_coverage(mask:&[u8],size:u32,x:f32,y:f32)->f32 {
 }
 
 pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)->RgbaImage{
-    let text_mask=glyph.strip_prefix("text:").and_then(|text|rasterize_text_mask(text,size,spec.glyph_scale));
+    let glyph_mask=glyph.strip_prefix("text:").and_then(|text|rasterize_text_mask(text,size,spec.glyph_scale)).or_else(||rasterize_builtin_glyph_mask(glyph,size,spec.glyph_scale));
     let mut out=RgbaImage::new(size,size);let half=size as f32*0.5;let radius=half*spec.tile_scale;let angle=spec.gradient_angle_deg.to_radians();
     let max_t=(angle.cos().abs()+angle.sin().abs()).max(0.001);
     out.as_mut().par_chunks_mut(size as usize * 4).enumerate().for_each(|(row_index, row)| { let y = row_index as u32; for x in 0..size {
@@ -170,14 +208,14 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
                 let gy=ny-spec.glyph_offset_y/(size as f32);
                 let rx=gx*rot.cos()-gy*rot.sin();
                 let ry=gx*rot.sin()+gy*rot.cos();
-                let cov=if let Some(mask)=&text_mask{text_mask_coverage(mask,size,rx,ry)}else{glyph_coverage(glyph,rx,ry,spec.glyph_scale)};
+                let cov=if let Some(mask)=&glyph_mask{text_mask_coverage(mask,size,rx,ry)}else{glyph_coverage(glyph,rx,ry,spec.glyph_scale)};
                 if spec.glyph_shadow {
                     let off=(spec.glyph_shadow_blur/size as f32).clamp(0.006,0.08);
-                    let shadow=if let Some(mask)=&text_mask{text_mask_coverage(mask,size,rx,ry-off)}else{glyph_coverage(glyph,rx,ry-off,spec.glyph_scale)};
+                    let shadow=if let Some(mask)=&glyph_mask{text_mask_coverage(mask,size,rx,ry-off)}else{glyph_coverage(glyph,rx,ry-off,spec.glyph_scale)};
                     if shadow>0.0 { for c in 0..3 { pixel[c]=mix(pixel[c] as f32,spec.shadow_color[c] as f32,shadow*spec.glyph_shadow_opacity) as u8; } }
                 }
                 if spec.glyph_emboss {
-                    let highlight=if let Some(mask)=&text_mask{text_mask_coverage(mask,size,rx-0.012,ry-0.012)}else{glyph_coverage(glyph,rx-0.012,ry-0.012,spec.glyph_scale)};
+                    let highlight=if let Some(mask)=&glyph_mask{text_mask_coverage(mask,size,rx-0.012,ry-0.012)}else{glyph_coverage(glyph,rx-0.012,ry-0.012,spec.glyph_scale)};
                     if highlight>cov { for c in 0..3 { pixel[c]=(pixel[c] as f32+highlight*18.0).clamp(0.0,255.0) as u8; } }
                 }
                 if cov>0.0 { if pixel[3]==0 { pixel=Rgba([spec.glyph_color[0],spec.glyph_color[1],spec.glyph_color[2],(cov*255.0) as u8]); } else { for c in 0..3 { pixel[c]=mix(pixel[c] as f32,spec.glyph_color[c] as f32,cov) as u8; } } }
@@ -284,6 +322,20 @@ pub fn export_ico(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_original_vector_glyph_renders_from_its_svg_path() {
+        for name in ["Layers","Terminal","Code2","Cpu","Database","Rocket","ShieldCheck","Sparkles","CloudLightning","Box","Globe","Gamepad2"] {
+            let mask=rasterize_builtin_glyph_mask(name,128,0.62).expect("known glyph should rasterize");
+            let visible=mask.iter().filter(|alpha|**alpha>16).count();
+            assert!(visible>20,"{name} should produce visible vector coverage");
+        }
+    }
+
+    #[test]
+    fn unknown_glyph_names_keep_the_fallback_renderer() {
+        assert!(builtin_glyph_paths("not-a-real-glyph").is_none());
+    }
 
     #[test]
     fn renders_requested_dimensions() {
