@@ -178,6 +178,7 @@ impl IconForgeNativeApp {
     }
 
     fn apply_preset(&mut self,name:&str) {
+        self.spec=IconSpec::default();
         self.active_preset=name.into();
         match name {
             "Liquid Glass 27" => {
@@ -346,7 +347,14 @@ impl eframe::App for IconForgeNativeApp {
                 ui.label(egui::RichText::new("ICON STUDIO").size(10.0).strong().weak());
                 ui.add_space(5.0);
                 ui.label("Name"); if ui.text_edit_singleline(&mut self.spec.name).changed(){self.needs_rerender=true;}
-                ui.label("Presets");
+                ui.horizontal(|ui|{
+                    ui.label("Presets");
+                    if ui.small_button("Reset all").on_hover_text("Restore default icon settings").clicked(){
+                        self.spec=IconSpec::default();
+                        self.active_preset="Liquid Glass 27".into();
+                        self.needs_rerender=true;
+                    }
+                });
                 egui::ComboBox::from_id_salt("preset").selected_text(&self.active_preset).show_ui(ui,|ui|{
                     for p in ["Liquid Glass 27","Liquid Aurora","Windows 11 Fluent","Windows 11 Mica","Cyber Slate","Titanium Matte","Windows 98 Classic"] {
                         if ui.selectable_label(self.active_preset==p,p).clicked(){self.apply_preset(p);}
