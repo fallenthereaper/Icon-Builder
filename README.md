@@ -1,39 +1,62 @@
-# IconForgeApp — Native Rust (`egui` + `fastframe`)
+# IconForge — Native Rust Edition
 
-This repository is a 100% native Rust desktop application built with:
-- **[emilk/egui](https://github.com/emilk/egui)** (`0.36.2`) & **eframe** (GPU rendered, zero web technology).
-- **[fastframe.dev](https://fastframe.dev)** (`crmne/fastframe`) for native desktop typography, OS subpixel hinting, and dark graphite styling.
-- **Automated GitHub Actions Release**: Every push automatically builds and publishes native `.exe` executables on GitHub!
+IconForge is being migrated from its original React/TypeScript implementation to a native desktop application built with Rust, egui/eframe, and Fastframe.
 
----
+The original TypeScript source is intentionally retained under src/**/*.tsx and src/**/*.ts while the native port is developed and validated.
 
-## 🚀 How to Get Your Pre-Built `.exe` from GitHub (Zero Local Setup)
+## Native stack
 
-1. **Create a GitHub Repository**:
-   - Go to [github.com/new](https://github.com/new).
-   - Name your repo (e.g. `iconforgeapp`) and click **Create repository**.
+- Rust 2024
+- egui / eframe for the desktop interface and GPU-backed canvas
+- Fastframe fonts and text rendering
+- image for raster image decoding and PNG output
+- resvg for SVG rasterization
+- ico for multi-resolution Windows icon encoding and parsing
+- native ICNS container encoding
+- rfd for native file dialogs
+- zip for developer and Rust project bundles
 
-2. **Upload or Push this Folder**:
-   - Either drag and drop this unzipped folder into your GitHub repository web UI, or in your terminal:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit of native egui + fastframe app"
-   git branch -M main
-   git remote add origin https://github.com/<YOUR_USERNAME>/iconforgeapp.git
-   git push -u origin main
-   ```
+## Current native features
 
-3. **Get Your Compiled `.exe`**:
-   - Go to the **Actions** tab in your GitHub repository.
-   - GitHub's cloud runners will automatically compile the native Windows `.exe` and macOS binary.
-   - Once complete, download the executable directly from the **Releases** tab or Artifacts!
+- Three-panel icon studio with inspector, canvas and mipmap previews
+- macOS/iOS squircle, WinUI rounded rectangle, circle, hexagon, shield and square shapes
+- Presets: macOS 27 Pro, macOS Tahoe Glass, WinUI 3 Fluent, iOS 18 Full-Bleed, Cyber Slate, Titanium Matte, Material You Adaptive and Retro 98
+- Geometry, background, glyph, lighting, shadow, badge and colour-grading controls
+- Raster image and SVG import
+- Multi-resolution ICO import with per-entry selection
+- Automatic palette extraction from imported artwork
+- PNG, ICO and ICNS export
+- Developer asset ZIP and self-contained Rust/Fastframe project ZIP export
+- Windows PE32 executable export with embedded icon resources and editable metadata
+- macOS Dock, Windows taskbar/desktop and browser favicon mockup previews
 
----
+Some effects and UI details are still being brought into parity with the original web application. See the open pull request for the current port scope and outstanding work.
 
-## 💻 Optional: Build Locally (If you have Rust installed)
+## Run locally
 
-```bash
-cargo run --release
-```
-The compiled standalone `.exe` will be saved to `target/release/iconforgeapp.exe`.
+Install a current stable Rust toolchain, then run:
+
+    git clone https://github.com/fallenthereaper/Icon-Builder.git
+    cd Icon-Builder
+    cargo run --release
+
+For tests:
+
+    cargo test
+
+## Build artifacts
+
+GitHub Actions builds Windows, macOS Apple Silicon and Linux binaries. Pull requests are configured to run the build matrix when repository Actions are enabled. Tagged releases and manual workflow dispatch publish release assets.
+
+## Project structure
+
+    src/
+      main.rs       Native egui application
+      renderer.rs   Icon rasterizer, ICO/ICNS pipeline and SVG/ICO import
+      packaging.rs  Developer ZIP and Rust project packaging
+      pe_exe.rs     Windows PE32 executable generator
+      *.tsx, *.ts   Original React/TypeScript implementation (migration reference)
+
+## License
+
+See the repository license and the individual dependency licenses.
