@@ -5,7 +5,7 @@ mod packaging;
 
 use eframe::egui;
 use fastframe_fonts::{FontSetup, Weight};
-use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns};
+use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns, IcoEntry, parse_ico_file};
 
 
 const RESOLUTIONS: [u32; 8] = [1024, 512, 256, 128, 64, 48, 32, 16];
@@ -26,6 +26,8 @@ pub struct IconForgeNativeApp {
     glyph: String,
     show_mockup: bool,
     mockup_env: usize,
+    ico_entries: Vec<IcoEntry>,
+    selected_ico_entry: usize,
 }
 
 impl Default for IconForgeNativeApp {
@@ -46,6 +48,8 @@ impl Default for IconForgeNativeApp {
             glyph: "Layers".into(),
             show_mockup: false,
             mockup_env: 0,
+            ico_entries: Vec::new(),
+            selected_ico_entry: 0,
         }
     }
 }
@@ -149,15 +153,32 @@ impl IconForgeNativeApp {
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("Images", &["png","jpg","jpeg","webp","bmp","ico"])
             .pick_file() {
-            match image::open(&path) {
-                Ok(img) => {
-                    self.imported=Some(img.to_rgba8());
-                    self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());
-                    self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());
-                    self.status_msg=format!("Imported {}",path.display());
-                    self.needs_rerender=true;
+            if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("ico")) {
+                match parse_ico_file(&path) {
+                    Ok(entries) if !entries.is_empty() => {
+                        self.ico_entries=entries;
+                        self.selected_ico_entry=0;
+                        self.imported=Some(self.ico_entries[0].image.clone());
+                        self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());
+                        self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());
+                        self.status_msg=format!("Imported ICO · {} embedded resolutions",self.ico_entries.len());
+                        self.needs_rerender=true;
+                    }
+                    Ok(_) => self.status_msg="ICO file contains no image entries".into(),
+                    Err(e)=>self.status_msg=format!("Could not parse ICO: {e}"),
                 }
-                Err(e)=>self.status_msg=format!("Could not open image: {e}"),
+            } else {
+                match image::open(&path) {
+                    Ok(img) => {
+                        self.ico_entries.clear();self.selected_ico_entry=0;
+                        self.imported=Some(img.to_rgba8());
+                        self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());
+                        self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());
+                        self.status_msg=format!("Imported {}",path.display());
+                        self.needs_rerender=true;
+                    }
+                    Err(e)=>self.status_msg=format!("Could not open image: {e}"),
+                }
             }
         }
     }
@@ -231,6 +252,12 @@ impl eframe::App for IconForgeNativeApp {
                 color_row(ui,"Secondary",&mut self.spec.bg_secondary,&mut self.needs_rerender);
                 color_row(ui,"Accent",&mut self.spec.bg_accent,&mut self.needs_rerender);
                 slider(ui,"Gradient angle",&mut self.spec.gradient_angle_deg,0.0..=360.0,&mut self.needs_rerender);
+                if !self.ico_entries.is_empty(){
+                    ui.label("ICO source entries");
+                    egui::ComboBox::from_id_salt("ico-entry-picker").selected_text(format!("{} × {}",self.ico_entries[self.selected_ico_entry].width,self.ico_entries[self.selected_ico_entry].height)).show_ui(ui,|ui|{
+                        for (index,entry) in self.ico_entries.iter().enumerate(){let label=format!("{} × {} · {} bit · {}",entry.width,entry.height,entry.bit_depth,if entry.is_png{"PNG"}else{"DIB"});if ui.selectable_value(&mut self.selected_ico_entry,index,label).changed(){self.imported=Some(self.ico_entries[index].image.clone());self.needs_rerender=true;}}
+                    });
+                }
                 if let Some(source)=&self.imported{if ui.button("Auto-match palette from source").clicked(){let(a,b,c,d)=packaging::extract_palette(source);self.spec.bg_primary=a;self.spec.bg_secondary=b;self.spec.bg_accent=c;self.spec.glyph_color=d;self.needs_rerender=true;}}
                 ui.separator();
                 ui.label(egui::RichText::new("GLYPH").strong());
