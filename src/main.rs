@@ -131,12 +131,20 @@ impl IconForgeNativeApp {
         );
         self.texture = Some(ctx.load_texture("icon_preview", color, egui::TextureOptions::LINEAR));
         self.mipmap_textures.clear();
+        let mut rendered_thumbnails:Vec<(u32,egui::TextureHandle)>=Vec::new();
         for mip_size in RESOLUTIONS {
-            // 42px inspector thumbnails do not need full 1024px backing images.
+            // The inspector displays every mip at the same 42px size. Reuse
+            // the 128px preview texture for all larger output resolutions.
             let preview_size=mip_size.min(128);
-            let mip=render_icon(&self.spec,preview_size,self.imported.as_ref(),&self.glyph_source());
-            let mip_color=egui::ColorImage::from_rgba_unmultiplied([preview_size as usize,preview_size as usize],mip.as_raw());
-            let handle=ctx.load_texture(format!("mipmap-{mip_size}"),mip_color,egui::TextureOptions::LINEAR);
+            let handle=if let Some((_,cached))=rendered_thumbnails.iter().find(|(size,_)|*size==preview_size) {
+                cached.clone()
+            } else {
+                let mip=render_icon(&self.spec,preview_size,self.imported.as_ref(),&self.glyph_source());
+                let color=egui::ColorImage::from_rgba_unmultiplied([preview_size as usize,preview_size as usize],mip.as_raw());
+                let texture=ctx.load_texture(format!("mipmap-preview-{preview_size}"),color,egui::TextureOptions::LINEAR);
+                rendered_thumbnails.push((preview_size,texture.clone()));
+                texture
+            };
             self.mipmap_textures.push((mip_size,handle));
         }
         self.needs_rerender = false;
