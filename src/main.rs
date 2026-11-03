@@ -394,8 +394,9 @@ impl eframe::App for IconForgeNativeApp {
         });
 
         if self.show_export {
+            let mut export_window_open=self.show_export;
             egui::Window::new("Export Studio")
-                .open(&mut self.show_export)
+                .open(&mut export_window_open)
                 .collapsible(false)
                 .resizable(false)
                 .default_width(560.0)
@@ -457,6 +458,7 @@ impl eframe::App for IconForgeNativeApp {
                     ui.separator();
                     ui.label(egui::RichText::new(&self.status_msg).weak().size(10.0));
                 });
+            self.show_export=export_window_open;
         }
 
         if self.show_mockup{egui::Window::new("Context Mockup Simulator").open(&mut self.show_mockup).default_width(620.0).show(&ctx,|ui|{
