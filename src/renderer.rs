@@ -35,7 +35,7 @@ fn inside(shape:Shape,x:f32,y:f32,n:f32,r:f32,corner:f32)->bool{
     }
 }
 fn glyph_coverage(name:&str,x:f32,y:f32,s:f32)->f32{
-    let line=|d:f32| if d<0.035 {1.0}else{0.0};
+    let line=|d:f32| ((0.045-d)/0.02).clamp(0.0,1.0);
     let seg=|x:f32,y:f32,x1:f32,y1:f32,x2:f32,y2:f32|{let dx=x2-x1;let dy=y2-y1;let t=(((x-x1)*dx+(y-y1)*dy)/(dx*dx+dy*dy)).clamp(0.0,1.0);let px=x1+t*dx;let py=y1+t*dy;line(((x-px).powi(2)+(y-py).powi(2)).sqrt())};
     let (x,y)=(x/s,y/s);
     let mut v=match name{
@@ -64,8 +64,9 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
     let max_t=(angle.cos().abs()+angle.sin().abs()).max(0.001);
     for y in 0..size{for x in 0..size{
         let nx=(x as f32+0.5-half)/radius;let ny=(y as f32+0.5-half)/radius;
-        let inside_tile=inside(spec.shape,nx*radius,ny*radius,spec.superellipse_n,radius,spec.corner_radius);
-        let idx=if !inside_tile{Rgba([0,0,0,0])}else{
+        let offsets=[(-0.25f32,-0.25f32),(0.25,-0.25),(-0.25,0.25),(0.25,0.25)];
+        let coverage=offsets.iter().filter(|(ox,oy)|inside(spec.shape,(nx+ox/radius)*radius,(ny+oy/radius)*radius,spec.superellipse_n,radius,spec.corner_radius)).count() as f32/4.0;
+        let idx=if coverage<=0.0{Rgba([0,0,0,0])}else{
             let t=(((nx*angle.cos()+ny*angle.sin())/max_t)+1.0)*0.5;
             let radial=(nx*nx+ny*ny).sqrt();
             let t=match spec.bg_style.as_str(){"radial-gradient"=>1.0-radial.clamp(0.0,1.0),"solid"=>0.0,"dark-obsidian"=>t*0.65,"titanium-metallic"=>((t*3.0).sin()*0.5+0.5),"acrylic-glass"=>t*0.72+radial*0.28,"carbon-fiber"=>t*0.55+if ((nx*radius/5.0).floor() as i32+(ny*radius/5.0).floor() as i32)%2==0{0.10}else{0.0},"mesh-aurora"=>((nx*2.2).sin()+(ny*2.0).cos()+2.0)*0.25,"matte-ceramic"=>t*0.35+0.32,_=>t};
@@ -98,6 +99,7 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
             let band=(nx+ny+0.65).abs();let glass=if spec.lighting=="glass-reflex"{(1.0-band*1.8).clamp(0.0,1.0)*spec.reflex_opacity}else{0.0};
             let inner=((1.0-nx.abs().max(ny.abs()))*spec.bevel_thickness*0.35).clamp(0.0,1.0)*spec.inner_shadow_opacity;
             for c in 0..3{pixel[c]=(pixel[c] as f32+rim*34.0+glass*220.0-inner*42.0).clamp(0.0,255.0) as u8;}
+            pixel[3]=(pixel[3] as f32*coverage).clamp(0.0,255.0) as u8;
             pixel
         };
         out.put_pixel(x,y,idx);
