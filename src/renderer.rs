@@ -41,10 +41,10 @@ fn glyph_coverage(name:&str,x:f32,y:f32,s:f32)->f32{
     let mut v=match name{
         "Layers"=>{let a=seg(x,y,-0.65,-0.30,0.0,0.02).max(seg(x,y,0.0,0.02,0.65,-0.30));let b=seg(x,y,-0.65,0.0,0.0,0.32).max(seg(x,y,0.0,0.32,0.65,0.0));let c=seg(x,y,-0.65,0.30,0.0,0.62).max(seg(x,y,0.0,0.62,0.65,0.30));a.max(b).max(c)},
         "Code2"=>seg(x,y,-0.35,-0.3,-0.65,0.0).max(seg(x,y,-0.65,0.0,-0.35,0.3)).max(seg(x,y,0.35,-0.3,0.65,0.0)).max(seg(x,y,0.65,0.0,0.35,0.3)).max(seg(x,y,0.12,-0.5,-0.12,0.5)),
-        "ShieldCheck"=>{let shield=if y>-0.55&&y<0.5&&x.abs()<0.5-y*0.25{1.0}else{0.0};shield.max(seg(x,y,-0.25,0.0,-0.05,0.2)).max(seg(x,y,-0.05,0.2,0.32,-0.24))},
+        "ShieldCheck"=>{let shield: f32=if y>-0.55&&y<0.5&&x.abs()<0.5-y*0.25{1.0}else{0.0};shield.max(seg(x,y,-0.25,0.0,-0.05,0.2)).max(seg(x,y,-0.05,0.2,0.32,-0.24))},
         "Sparkles"=>{let d=(x*x+y*y).sqrt();let a=y.atan2(x);let radius=0.36+0.15*(a*4.0).cos();if (d-radius).abs()<0.07{1.0}else{0.0}},
-        "CloudLightning"=>{let cloud=if ((x/0.48).powi(2)+(y/0.27).powi(2)-1.0).abs()<0.16&&y<0.18{1.0}else{0.0};cloud.max(seg(x,y,0.12,0.05,-0.10,0.42)).max(seg(x,y,-0.10,0.42,0.12,0.42))},
-        "Gamepad2"=>{let body=if x.abs()<0.62&&y.abs()<0.32{1.0}else{0.0};body.max(seg(x,y,-0.38,0.0,-0.18,0.0)).max(seg(x,y,-0.28,-0.10,-0.28,0.10))},
+        "CloudLightning"=>{let cloud: f32=if ((x/0.48).powi(2)+(y/0.27).powi(2)-1.0).abs()<0.16&&y<0.18{1.0}else{0.0};cloud.max(seg(x,y,0.12,0.05,-0.10,0.42)).max(seg(x,y,-0.10,0.42,0.12,0.42))},
+        "Gamepad2"=>{let body: f32=if x.abs()<0.62&&y.abs()<0.32{1.0}else{0.0};body.max(seg(x,y,-0.38,0.0,-0.18,0.0)).max(seg(x,y,-0.28,-0.10,-0.28,0.10))},
         "Terminal"=>seg(x,y,-0.55,-0.35,0.0,0.0).max(seg(x,y,0.0,0.0,-0.55,0.35)).max(seg(x,y,-0.05,0.42,0.55,0.42)),
         "Code"=>seg(x,y,-0.35,-0.3,-0.65,0.0).max(seg(x,y,-0.65,0.0,-0.35,0.3)).max(seg(x,y,0.35,-0.3,0.65,0.0)).max(seg(x,y,0.65,0.0,0.35,0.3)).max(seg(x,y,0.12,-0.5,-0.12,0.5)),
         "Cpu"=>if x.abs()<0.38&&y.abs()<0.38&&(x.abs()>0.2||y.abs()>0.2){1.0}else if (x.abs()-0.48).abs()<0.035&&y.abs()<0.65 || (y.abs()-0.48).abs()<0.035&&x.abs()<0.65{1.0}else{0.0},
