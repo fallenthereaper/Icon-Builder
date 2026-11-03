@@ -2,6 +2,7 @@
 
 mod renderer;
 mod packaging;
+mod pe_exe;
 
 use eframe::egui;
 use fastframe_fonts::{FontSetup, Weight};
@@ -28,6 +29,7 @@ pub struct IconForgeNativeApp {
     mockup_env: usize,
     ico_entries: Vec<IcoEntry>,
     selected_ico_entry: usize,
+    exe_metadata: pe_exe::ExeMetadata,
 }
 
 impl Default for IconForgeNativeApp {
@@ -50,6 +52,7 @@ impl Default for IconForgeNativeApp {
             mockup_env: 0,
             ico_entries: Vec::new(),
             selected_ico_entry: 0,
+            exe_metadata: pe_exe::ExeMetadata { file_name: "iconforge_app".into(), app_name: "IconForgeApp".into(), company_name: "Native Studio".into(), version: "1.0.0".into(), description: "Native desktop icon application".into(), window_title: "IconForgeApp".into() },
         }
     }
 }
@@ -100,6 +103,13 @@ impl IconForgeNativeApp {
             Ok(()) => format!("Exported {} · {}", kind, path.display()),
             Err(e) => format!("Export failed: {e}"),
         };
+    }
+
+    fn export_exe(&mut self) {
+        let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}.exe",self.exe_metadata.file_name)).add_filter("Windows executable",&["exe"]).save_file() else{return;};
+        let sizes=[16u32,32,48,64,256];
+        let result=(|| -> Result<(),Box<dyn std::error::Error>> { let mut icons=Vec::new();for size in sizes{let image=render_icon(&self.spec,size,self.imported.as_ref(),&self.glyph);icons.push(pe_exe::png_icon(size,&image)?);}let binary=pe_exe::generate_windows_ex(&icons,&self.exe_metadata)?;std::fs::write(&path,binary)?;Ok(())})();
+        self.status_msg=match result{Ok(())=>format!("Windows PE32 executable exported · {}",path.display()),Err(e)=>format!("EXE export failed: {e}")};
     }
 
     fn apply_preset(&mut self, name: &str) {
@@ -216,6 +226,7 @@ impl eframe::App for IconForgeNativeApp {
                 for res in RESOLUTIONS { if ui.selectable_label(self.selected_resolution==res,format!("{res}")).clicked(){self.selected_resolution=res;self.needs_rerender=true;} }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
                     if ui.button("Rust crate").clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_rust_fastframe.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){match packaging::export_rust_project_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){Ok(())=>self.status_msg=format!("Rust project exported · {}",path.display()),Err(e)=>self.status_msg=format!("Rust project export failed: {e}")}}}
+                    if ui.button("EXE").clicked(){self.export_exe();}
                     if ui.button("ZIP pack").clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_developer_pack.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){match packaging::export_developer_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){Ok(())=>self.status_msg=format!("Developer pack saved · {}",path.display()),Err(e)=>self.status_msg=format!("ZIP export failed: {e}")}}}
                     if ui.button("Export ▾").clicked(){self.export("ICO");}
                     if ui.button("ICNS").clicked(){self.export("ICNS");}
@@ -236,6 +247,14 @@ impl eframe::App for IconForgeNativeApp {
                     for p in ["macOS 27 Pro","macOS Tahoe Glass","WinUI 3 Fluent","iOS 18 Full-Bleed","Cyber Slate","Titanium Matte","Material You Adaptive","Retro 98"] {
                         if ui.selectable_label(self.active_preset==p,p).clicked(){self.apply_preset(p);}
                     }
+                });
+                egui::CollapsingHeader::new("WINDOWS EXE METADATA").default_open(false).show(ui,|ui|{
+                    ui.label("File name");ui.text_edit_singleline(&mut self.exe_metadata.file_name);
+                    ui.label("Application name");ui.text_edit_singleline(&mut self.exe_metadata.app_name);
+                    ui.label("Publisher");ui.text_edit_singleline(&mut self.exe_metadata.company_name);
+                    ui.label("Version");ui.text_edit_singleline(&mut self.exe_metadata.version);
+                    ui.label("Description");ui.text_edit_singleline(&mut self.exe_metadata.description);
+                    ui.label("Window title");ui.text_edit_singleline(&mut self.exe_metadata.window_title);
                 });
                 ui.separator();
                 ui.label(egui::RichText::new("SHAPE & GEOMETRY").strong());
