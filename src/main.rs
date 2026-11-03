@@ -137,8 +137,10 @@ impl IconForgeNativeApp {
         );
         self.texture = Some(ctx.load_texture("icon_preview", color, egui::TextureOptions::LINEAR));
         self.source_texture = self.imported.as_ref().map(|source| {
+            // Keep comparison uploads bounded even when a user imports a very large raster.
+            let preview = image::imageops::thumbnail(source, 1024, 1024);
             let source_color = egui::ColorImage::from_rgba_unmultiplied(
-                [source.width() as usize, source.height() as usize], source.as_raw());
+                [preview.width() as usize, preview.height() as usize], preview.as_raw());
             ctx.load_texture("icon_source_preview", source_color, egui::TextureOptions::LINEAR)
         });
         self.mipmap_textures.clear();
