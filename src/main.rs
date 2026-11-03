@@ -206,7 +206,14 @@ fn rendering_style(style: &mut egui::Style, dark: bool) {
         style.visuals.window_fill=egui::Color32::from_rgba_unmultiplied(25,29,40,226);
         style.visuals.panel_fill=egui::Color32::from_rgba_unmultiplied(20,24,34,224);
         style.visuals.widgets.noninteractive.bg_fill=egui::Color32::from_rgba_unmultiplied(30,36,49,210);
-        style.visuals.widgets.inactive.bg_fill=egui::Color32::from_rgba_unmultiplied(55,65,84,176);\n        style.visuals.widgets.hovered.bg_fill=egui::Color32::from_rgba_unmultiplied(75,112,164,205);\n        style.visuals.widgets.active.bg_fill=egui::Color32::from_rgb(44,112,190);\n        style.visuals.widgets.noninteractive.bg_stroke=egui::Stroke::new(1.0,egui::Color32::from_rgba_unmultiplied(255,255,255,24));\n        style.visuals.widgets.inactive.corner_radius=egui::CornerRadius::same(9);\n        style.visuals.widgets.hovered.corner_radius=egui::CornerRadius::same(9);\n        style.visuals.widgets.active.corner_radius=egui::CornerRadius::same(9);\n        style.spacing.button_padding=egui::vec2(10.0,6.0);
+        style.visuals.widgets.inactive.bg_fill=egui::Color32::from_rgba_unmultiplied(55,65,84,176);
+        style.visuals.widgets.hovered.bg_fill=egui::Color32::from_rgba_unmultiplied(75,112,164,205);
+        style.visuals.widgets.active.bg_fill=egui::Color32::from_rgb(44,112,190);
+        style.visuals.widgets.noninteractive.bg_stroke=egui::Stroke::new(1.0,egui::Color32::from_rgba_unmultiplied(255,255,255,24));
+        style.visuals.widgets.inactive.corner_radius=egui::CornerRadius::same(9);
+        style.visuals.widgets.hovered.corner_radius=egui::CornerRadius::same(9);
+        style.visuals.widgets.active.corner_radius=egui::CornerRadius::same(9);
+        style.spacing.button_padding=egui::vec2(10.0,6.0);
     } else {
         style.visuals.window_fill=egui::Color32::from_rgb(244,245,248);
         style.visuals.panel_fill=egui::Color32::from_rgb(250,250,252);
@@ -218,7 +225,9 @@ impl eframe::App for IconForgeNativeApp {
         let ctx = ui.ctx().clone();
         let dropped=ctx.input(|i|i.raw.dropped_files.clone());
         if let Some(file)=dropped.into_iter().next(){let path=file.path().to_path_buf();self.load_image_path(&path);}
-        #[cfg(windows)]\n        if !self.backdrop_applied { self.backdrop_applied=enable_windows_backdrop(); }\n        if self.needs_rerender || self.texture.is_none() { self.rebuild_preview_texture(&ctx); }
+        #[cfg(windows)]
+        if !self.backdrop_applied { self.backdrop_applied=enable_windows_backdrop(); }
+        if self.needs_rerender || self.texture.is_none() { self.rebuild_preview_texture(&ctx); }
 
         egui::Panel::top("toolbar").exact_size(44.0).show(ui, |ui| {
             ui.horizontal_centered(|ui| {
