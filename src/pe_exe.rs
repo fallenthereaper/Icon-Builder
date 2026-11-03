@@ -104,7 +104,7 @@ fn build_rdata_section(rva:u32,image_base:u32,meta:&ExeMetadata)->Rdata{
 }
 
 fn build_resource_section(images:&[PngIcon])->Vec<u8>{
- let n=images.len();let root=32usize;let icon_type=root;let group_type=icon_type+16+n*8;let icon_lang=group_type+24;let group_lang=icon_lang+n*24;let icon_data=group_lang+24;let group_data_entry=icon_data+n*16;let group_data=group_data_entry+16;
+ let n=images.len();let root=0usize;let icon_type=root+32;let group_type=icon_type+16+n*8;let icon_lang=group_type+24;let group_lang=icon_lang+n*24;let icon_data=group_lang+24;let group_data_entry=icon_data+n*16;let group_data=group_data_entry+16;
  let group_size=6+n*14;let mut offset=align_up(group_data+group_size,4);
  let mut payload_offsets=Vec::new();for img in images{payload_offsets.push(offset);offset+=align_up(img.png.len(),4);}
  let mut b=vec![0u8;offset];
