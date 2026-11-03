@@ -261,7 +261,7 @@ impl eframe::App for IconForgeNativeApp {
                 ui.label("Name"); if ui.text_edit_singleline(&mut self.spec.name).changed(){self.needs_rerender=true;}
                 ui.label("Presets");
                 egui::ComboBox::from_id_salt("preset").selected_text(&self.active_preset).show_ui(ui,|ui|{
-                    for p in ["Liquid Glass 27","Liquid Aurora","Windows 11 Fluent","Windows 11 Mica","Cyber Slate","Titanium Matte","Material You Adaptive","Windows 98 Classic"] {
+                    for p in ["Liquid Glass 27","Liquid Aurora","Windows 11 Fluent","Windows 11 Mica","Cyber Slate","Titanium Matte","Windows 98 Classic"] {
                         if ui.selectable_label(self.active_preset==p,p).clicked(){self.apply_preset(p);}
                     }
                 });
