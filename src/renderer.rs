@@ -14,13 +14,13 @@ pub struct IconSpec {
     pub bg_primary:[u8;3],pub bg_secondary:[u8;3],pub bg_accent:[u8;3],pub gradient_angle_deg:f32,
     pub rim_light_opacity:f32,pub shadow_blur:f32,pub shadow_offset_y:f32,pub shadow_opacity:f32,
     pub glyph_scale:f32,pub glyph_color:[u8;3],pub glyph_offset_x:f32,pub glyph_offset_y:f32,pub glyph_rotation:f32,pub brightness:f32,pub contrast:f32,pub saturation:f32,pub hue_rotate:f32,
-    pub bg_style:String,pub lighting:String,pub badge:String,pub badge_color:[u8;3],pub badge_position:String,
+    pub bg_style:String,pub lighting:String,pub shadow_mode:String,pub badge:String,pub badge_color:[u8;3],pub badge_position:String,
 }
 impl Default for IconSpec {
     fn default()->Self{Self{name:"IconForgeApp".into(),shape:Shape::Squircle,superellipse_n:4.5,tile_scale:0.805,corner_radius:0.224,
         bg_primary:[30,32,41],bg_secondary:[19,20,26],bg_accent:[11,12,16],gradient_angle_deg:145.0,
         rim_light_opacity:0.38,shadow_blur:32.0,shadow_offset_y:22.0,shadow_opacity:0.28,glyph_scale:0.62,glyph_color:[56,189,248],
-        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),lighting:"macos-specular".into(),badge:"none".into(),badge_color:[245,158,11],badge_position:"top-right".into()}}
+        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),lighting:"macos-specular".into(),shadow_mode:"macos-dual".into(),badge:"none".into(),badge_color:[245,158,11],badge_position:"top-right".into()}}
 }
 
 fn mix(a:f32,b:f32,t:f32)->f32{a+(b-a)*t.clamp(0.0,1.0)}
@@ -39,6 +39,12 @@ fn glyph_coverage(name:&str,x:f32,y:f32,s:f32)->f32{
     let seg=|x:f32,y:f32,x1:f32,y1:f32,x2:f32,y2:f32|{let dx=x2-x1;let dy=y2-y1;let t=(((x-x1)*dx+(y-y1)*dy)/(dx*dx+dy*dy)).clamp(0.0,1.0);let px=x1+t*dx;let py=y1+t*dy;line(((x-px).powi(2)+(y-py).powi(2)).sqrt())};
     let (x,y)=(x/s,y/s);
     let mut v=match name{
+        "Layers"=>{let a=seg(x,y,-0.65,-0.30,0.0,0.02).max(seg(x,y,0.0,0.02,0.65,-0.30));let b=seg(x,y,-0.65,0.0,0.0,0.32).max(seg(x,y,0.0,0.32,0.65,0.0));let c=seg(x,y,-0.65,0.30,0.0,0.62).max(seg(x,y,0.0,0.62,0.65,0.30));a.max(b).max(c)},
+        "Code2"=>seg(x,y,-0.35,-0.3,-0.65,0.0).max(seg(x,y,-0.65,0.0,-0.35,0.3)).max(seg(x,y,0.35,-0.3,0.65,0.0)).max(seg(x,y,0.65,0.0,0.35,0.3)).max(seg(x,y,0.12,-0.5,-0.12,0.5)),
+        "ShieldCheck"=>{let shield=if y>-0.55&&y<0.5&&x.abs()<0.5-y*0.25{1.0}else{0.0};shield.max(seg(x,y,-0.25,0.0,-0.05,0.2)).max(seg(x,y,-0.05,0.2,0.32,-0.24))},
+        "Sparkles"=>{let d=(x*x+y*y).sqrt();let a=y.atan2(x);let radius=0.36+0.15*(a*4.0).cos();if (d-radius).abs()<0.07{1.0}else{0.0}},
+        "CloudLightning"=>{let cloud=if ((x/0.48).powi(2)+(y/0.27).powi(2)-1.0).abs()<0.16&&y<0.18{1.0}else{0.0};cloud.max(seg(x,y,0.12,0.05,-0.10,0.42)).max(seg(x,y,-0.10,0.42,0.12,0.42))},
+        "Gamepad2"=>{let body=if x.abs()<0.62&&y.abs()<0.32{1.0}else{0.0};body.max(seg(x,y,-0.38,0.0,-0.18,0.0)).max(seg(x,y,-0.28,-0.10,-0.28,0.10))},
         "Terminal"=>seg(x,y,-0.55,-0.35,0.0,0.0).max(seg(x,y,0.0,0.0,-0.55,0.35)).max(seg(x,y,-0.05,0.42,0.55,0.42)),
         "Code"=>seg(x,y,-0.35,-0.3,-0.65,0.0).max(seg(x,y,-0.65,0.0,-0.35,0.3)).max(seg(x,y,0.35,-0.3,0.65,0.0)).max(seg(x,y,0.65,0.0,0.35,0.3)).max(seg(x,y,0.12,-0.5,-0.12,0.5)),
         "Cpu"=>if x.abs()<0.38&&y.abs()<0.38&&(x.abs()>0.2||y.abs()>0.2){1.0}else if (x.abs()-0.48).abs()<0.035&&y.abs()<0.65 || (y.abs()-0.48).abs()<0.035&&x.abs()<0.65{1.0}else{0.0},
@@ -62,7 +68,7 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
         let idx=if !inside_tile{Rgba([0,0,0,0])}else{
             let t=(((nx*angle.cos()+ny*angle.sin())/max_t)+1.0)*0.5;
             let radial=(nx*nx+ny*ny).sqrt();
-            let t=match spec.bg_style.as_str(){"radial-gradient"=>1.0-radial.clamp(0.0,1.0),"solid"=>0.0,"dark-obsidian"=>t*0.65,"titanium-metallic"=>((t*3.0).sin()*0.5+0.5),"acrylic-glass"=>t*0.72+radial*0.28,"carbon-fiber"=>t*0.55+if ((nx*radius/5.0).floor() as i32+(ny*radius/5.0).floor() as i32)%2==0{0.10}else{0.0},_=>t};
+            let t=match spec.bg_style.as_str(){"radial-gradient"=>1.0-radial.clamp(0.0,1.0),"solid"=>0.0,"dark-obsidian"=>t*0.65,"titanium-metallic"=>((t*3.0).sin()*0.5+0.5),"acrylic-glass"=>t*0.72+radial*0.28,"carbon-fiber"=>t*0.55+if ((nx*radius/5.0).floor() as i32+(ny*radius/5.0).floor() as i32)%2==0{0.10}else{0.0},"mesh-aurora"=>((nx*2.2).sin()+(ny*2.0).cos()+2.0)*0.25,"matte-ceramic"=>t*0.35+0.32,_=>t};
             let mut rgb=[0u8;3];
             for c in 0..3{let mid=mix(spec.bg_primary[c] as f32,spec.bg_secondary[c] as f32,t);rgb[c]=(mid*spec.brightness).clamp(0.0,255.0) as u8;}
             let edge=(1.0-(nx.abs().max(ny.abs()))).clamp(0.0,1.0);
@@ -78,12 +84,12 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
         out.put_pixel(x,y,idx);
     }}
     // Soft drop shadow outside tile, approximated with a smooth distance falloff.
-    if spec.shadow_opacity>0.0&&spec.tile_scale<0.99{
+    if spec.shadow_mode!="none"&&spec.shadow_opacity>0.0&&spec.tile_scale<0.99{
         let original=out.clone();
         for y in 0..size{for x in 0..size{if original.get_pixel(x,y)[3]==0{
             let dx=(x as f32+0.5-half)/half;let dy=(y as f32+0.5-half-spec.shadow_offset_y/size as f32*2.0)/half;
-            let d=(dx*dx+dy*dy).sqrt();let edge=1.0-spec.tile_scale;let spread=(spec.shadow_blur/size as f32*0.22).max(0.006);
-            let alpha=((edge+spread-d)/spread).clamp(0.0,1.0)*spec.shadow_opacity*0.28;
+            let d=(dx*dx+dy*dy).sqrt();let edge=1.0-spec.tile_scale;let shadow_factor=match spec.shadow_mode.as_str(){"elevated-3d"=>1.55,"winui-diffuse"=>0.85,"flat"=>0.18,_=>1.0};let spread=(spec.shadow_blur/size as f32*0.22*shadow_factor).max(0.006);
+            let alpha=((edge+spread-d)/spread).clamp(0.0,1.0)*spec.shadow_opacity*0.28*if spec.shadow_mode=="elevated-3d"{1.45}else{1.0};
             if alpha>0.0{out.put_pixel(x,y,Rgba([0,0,0,(alpha*255.0) as u8]));}
         }}}
     }
