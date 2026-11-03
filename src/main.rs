@@ -219,6 +219,22 @@ impl IconForgeNativeApp {
         self.needs_rerender=true;
     }
 
+    fn load_sample_svg(&mut self,name:&str,svg:&str){
+        match renderer::load_svg_data(svg.as_bytes()){
+            Ok(image)=>{
+                self.ico_entries.clear();
+                self.selected_ico_entry=0;
+                self.imported=Some(image);
+                self.imported_name=Some(format!("Sample · {name}"));
+                self.spec.name=name.replace(' ','_');
+                self.status_msg=format!("Loaded sample icon · {name}");
+                self.needs_rerender=true;
+                self.compare_mode=false;
+            }
+            Err(error)=>self.status_msg=format!("Could not load sample {name}: {error}"),
+        }
+    }
+
     fn import_image(&mut self) {
         if let Some(path)=rfd::FileDialog::new().add_filter("Images",&["png","jpg","jpeg","webp","bmp","ico","svg"]).pick_file(){
             self.load_image_path(&path);
@@ -298,6 +314,18 @@ impl eframe::App for IconForgeNativeApp {
                 ui.label(egui::RichText::new(&self.active_preset).weak().size(11.0));
                 ui.separator();
                 if ui.button("＋ Import").clicked(){self.import_image();}
+                egui::ComboBox::from_id_salt("sample-gallery")
+                    .selected_text("Sample gallery")
+                    .show_ui(ui,|ui|{
+                        for (name,svg) in [
+                            ("VS Code Blue Ribbon",r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17.5 2 5 12l12.5 10V2Z" fill="#007acc"/><path d="m17.5 2 4.5 3.5v13L17.5 22V2Z" fill="#1f8ad2"/><path d="m2 12 3-3 12.5 10-3 3L2 12Z" fill="#0065a9"/></svg>"#),
+                            ("Terminal CLI",r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="4" fill="#0f172a"/><path d="m5 7 5 5-5 5m7 0h7" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>"#),
+                            ("Rust Core",r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#f97316" stroke-width="2.5"/><circle cx="12" cy="12" r="4" fill="#ea580c"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4" stroke="#f97316" stroke-width="2.5"/></svg>"#),
+                            ("Neon AI Spark",r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2Z" fill="#8b5cf6"/><circle cx="12" cy="12" r="3" fill="#ec4899"/></svg>"#),
+                        ]{
+                            if ui.selectable_label(false,name).clicked(){self.load_sample_svg(name,svg);}
+                        }
+                    });
                 if self.imported.is_some() && ui.selectable_label(self.compare_mode, "Split compare").clicked(){self.compare_mode=!self.compare_mode;}
                 if ui.button("Mockup").clicked(){self.show_mockup=true;}
                 if self.compare_mode { ui.add(egui::Slider::new(&mut self.compare_split,0.1..=0.9).show_value(false).text("Split")); }
