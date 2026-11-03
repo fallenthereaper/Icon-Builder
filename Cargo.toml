@@ -20,6 +20,7 @@ tiny-skia = "0.11"
 resvg = "0.45.1"
 rayon = "1.10"
 serde = { version = "1", features = ["derive"] }
+fontdue = "0.9"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_WindowsAndMessaging"] }
