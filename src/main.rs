@@ -188,7 +188,7 @@ impl IconForgeNativeApp {
             }
         }else if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("ico")){
             match parse_ico_file(path){
-                Ok(entries) if !entries.is_empty()=>{self.ico_entries=entries;self.selected_ico_entry=0;self.imported=Some(self.ico_entries[0].image.clone());self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported ICO · {} embedded resolutions",self.ico_entries.len());self.needs_rerender=true;},
+                Ok(entries) if !entries.is_empty()=>{self.ico_entries=entries;self.icns_entries.clear();self.selected_icns_entry=0;self.selected_ico_entry=0;self.imported=Some(self.ico_entries[0].image.clone());self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported ICO · {} embedded resolutions",self.ico_entries.len());self.needs_rerender=true;},
                 Ok(_)=>self.status_msg="ICO file contains no image entries".into(),
                 Err(e)=>self.status_msg=format!("Could not parse ICO: {e}")
             }
