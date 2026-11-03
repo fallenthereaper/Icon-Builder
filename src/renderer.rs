@@ -210,6 +210,17 @@ mod tests {
         let image = render_icon(&spec, 64, None, "Terminal");
         assert_eq!(image.get_pixel(32, 32)[3], 255);
     }
+
+    #[test]
+    fn transparent_background_keeps_glyph_alpha() {
+        let mut spec=IconSpec::default();
+        spec.bg_style="transparent".into();
+        let image=render_icon(&spec,128,None,"Terminal");
+        let visible=image.pixels().filter(|p|p[3]>0).count();
+        assert!(visible>0);
+        assert!(visible<(128*128) as usize);
+    }
+
 }
 
 #[derive(Clone)]
