@@ -9,7 +9,7 @@ use fastframe_fonts::{FontSetup, Weight};
 use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns, IcoEntry, parse_ico_file, load_svg_file};
 
 
-const RESOLUTIONS: [u32; 8] = [1024, 512, 256, 128, 64, 48, 32, 16];
+const RESOLUTIONS: [u32; 11] = [1024, 512, 256, 192, 180, 128, 64, 48, 32, 24, 16];
 
 pub struct IconForgeNativeApp {
     spec: IconSpec,
@@ -19,6 +19,7 @@ pub struct IconForgeNativeApp {
     dark: bool,
     zoom: f32,
     texture: Option<egui::TextureHandle>,
+    mipmap_textures: Vec<(u32, egui::TextureHandle)>,
     needs_rerender: bool,
     status_msg: String,
     active_preset: String,
@@ -42,6 +43,7 @@ impl Default for IconForgeNativeApp {
             dark: true,
             zoom: 1.0,
             texture: None,
+            mipmap_textures: Vec::new(),
             needs_rerender: true,
             status_msg: "Ready · Native Rust renderer".into(),
             active_preset: "macOS 27 Pro".into(),
@@ -85,6 +87,13 @@ impl IconForgeNativeApp {
             image.as_raw(),
         );
         self.texture = Some(ctx.load_texture("icon_preview", color, egui::TextureOptions::LINEAR));
+        self.mipmap_textures.clear();
+        for mip_size in [1024u32,512,256,192,180,128,64,48,32,24,16] {
+            let mip=render_icon(&self.spec,mip_size,self.imported.as_ref(),&self.glyph);
+            let mip_color=egui::ColorImage::from_rgba_unmultiplied([mip_size as usize,mip_size as usize],mip.as_raw());
+            let handle=ctx.load_texture(format!("mipmap-{mip_size}"),mip_color,egui::TextureOptions::LINEAR);
+            self.mipmap_textures.push((mip_size,handle));
+        }
         self.needs_rerender = false;
     }
 
@@ -321,15 +330,12 @@ impl eframe::App for IconForgeNativeApp {
             ui.label(egui::RichText::new("MIPMAP PREVIEW").strong().size(11.0));
             ui.separator();
             egui::ScrollArea::vertical().show(ui,|ui|{
-                for res in [256_u32,128,64,48,32,16] {
-                    let img=render_icon(&self.spec,res,self.imported.as_ref(),&self.glyph);
-                    let ci=egui::ColorImage::from_rgba_unmultiplied([res as usize,res as usize],img.as_raw());
-                    let tex=ctx.load_texture(format!("mipmap-{res}"),ci,egui::TextureOptions::LINEAR);
+                for (res,tex) in &self.mipmap_textures {
                     ui.horizontal(|ui|{
                         ui.image((tex.id(),egui::vec2(42.0,42.0)));
                         ui.vertical(|ui|{
                             ui.label(format!("{res} × {res}"));
-                            if ui.small_button(if self.selected_resolution==res{"Selected"}else{"Preview"}).clicked(){self.selected_resolution=res;self.needs_rerender=true;}
+                            if ui.small_button(if self.selected_resolution==*res{"Selected"}else{"Preview"}).clicked(){self.selected_resolution=*res;self.needs_rerender=true;}
                         });
                     });
                     ui.add_space(6.0);
