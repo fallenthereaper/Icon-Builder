@@ -374,6 +374,10 @@ impl eframe::App for IconForgeNativeApp {
                 ui.label(egui::RichText::new("BADGE / OVERLAY").strong());
                 egui::ComboBox::from_id_salt("badge-type").selected_text(&self.spec.badge).show_ui(ui,|ui|{for badge in ["none","beta","dev","pro","dot","windows","custom"]{if ui.selectable_value(&mut self.spec.badge,badge.into(),badge).changed(){self.needs_rerender=true;}}});
                 egui::ComboBox::from_id_salt("badge-position").selected_text(&self.spec.badge_position).show_ui(ui,|ui|{for pos in ["top-right","top-left","bottom-right","bottom-left"]{if ui.selectable_value(&mut self.spec.badge_position,pos.into(),pos).changed(){self.needs_rerender=true;}}});
+                if self.spec.badge!="none"&&self.spec.badge!="dot" {
+                    if ui.text_edit_singleline(&mut self.spec.badge_text).changed(){self.needs_rerender=true;}
+                    color_row(ui,"Badge text colour",&mut self.spec.badge_text_color,&mut self.needs_rerender);
+                }
                 color_row(ui,"Badge colour",&mut self.spec.badge_color,&mut self.needs_rerender);
                 ui.separator();
                 ui.label(egui::RichText::new("IMAGE GRADING").strong());
