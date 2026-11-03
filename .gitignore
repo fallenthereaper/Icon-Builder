@@ -1,8 +1,6 @@
-node_modules/
-build/
-dist/
-coverage/
+/target
+Cargo.lock
+**/*.rs.bk
 .DS_Store
-*.log
-.env*
-!.env.example
+dist/
+release-artifacts/

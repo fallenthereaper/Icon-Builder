@@ -1,0 +1,39 @@
+[package]
+name = "iconforgeapp"
+version = "1.0.0.0"
+edition = "2024"
+authors = ["Native Studio"]
+description = "Native Desktop Application with Embedded Multi-Res Icon"
+
+[dependencies]
+# Core Immediate Mode GUI (emilk/egui)
+egui = "0.36.2"
+eframe = { version = "0.36.2", default-features = false, features = [
+    "default_fonts",
+    "glow",
+    "persistence",
+    "wayland",
+    "x11",
+] }
+
+# Fastframe Native Desktop Foundation (https://fastframe.dev / crmne/fastframe)
+fastframe-fonts = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" }
+fastframe-text  = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" }
+fastframe-theme = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" }
+fastframe-icons = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" }
+
+# Native Image & Binary Encoding Pipeline
+image = { version = "0.25", default-features = false, features = ["png", "ico", "bmp", "jpeg", "webp"] }
+ico = "0.4"
+icns = "0.3"
+rfd = "0.15"
+tiny-skia = "0.11"
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
