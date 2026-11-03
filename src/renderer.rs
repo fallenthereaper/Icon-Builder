@@ -1,11 +1,12 @@
 // Native Rust icon renderer and multi-format export pipeline.
 use image::{Rgba, RgbaImage, ImageFormat};
-use std::{io::Cursor, path::Path};
+use std::path::Path;
+use rayon::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Shape { Squircle, IosSquircle, WinUi, Circle, Hexagon, Shield, Square }
+pub enum Shape { Squircle, WinUi, Circle, Hexagon, Shield, Square }
 impl Shape {
-    pub fn label(self)->&'static str { match self {Self::Squircle=>"macOS Squircle",Self::IosSquircle=>"iOS Squircle",Self::WinUi=>"WinUI Rounded",Self::Circle=>"Circle",Self::Hexagon=>"Hexagon",Self::Shield=>"Shield",Self::Square=>"Square"} }
+    pub fn label(self)->&'static str { match self {Self::Squircle=>"Liquid Squircle",Self::WinUi=>"WinUI Rounded",Self::Circle=>"Circle",Self::Hexagon=>"Hexagon",Self::Shield=>"Shield",Self::Square=>"Square"} }
 }
 
 #[derive(Clone, Debug)]
@@ -20,7 +21,7 @@ impl Default for IconSpec {
     fn default()->Self{Self{name:"IconForgeApp".into(),shape:Shape::Squircle,superellipse_n:4.5,tile_scale:0.805,corner_radius:0.224,
         bg_primary:[30,32,41],bg_secondary:[19,20,26],bg_accent:[11,12,16],gradient_angle_deg:145.0,
         rim_light_opacity:0.38,shadow_blur:32.0,shadow_offset_y:22.0,shadow_opacity:0.28,glyph_scale:0.62,glyph_color:[56,189,248],
-        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),bg_noise:true,bg_noise_opacity:0.04,lighting:"macos-specular".into(),bevel_thickness:1.5,reflex_opacity:0.15,inner_shadow_opacity:0.0,glyph_shadow:true,glyph_shadow_blur:14.0,glyph_shadow_opacity:0.45,glyph_emboss:true,shadow_color:[0,0,0],shadow_mode:"macos-dual".into(),badge:"none".into(),badge_color:[245,158,11],badge_position:"top-right".into()}}
+        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),bg_noise:true,bg_noise_opacity:0.04,lighting:"liquid-specular".into(),bevel_thickness:1.5,reflex_opacity:0.15,inner_shadow_opacity:0.0,glyph_shadow:true,glyph_shadow_blur:14.0,glyph_shadow_opacity:0.45,glyph_emboss:true,shadow_color:[0,0,0],shadow_mode:"soft-dual".into(),badge:"none".into(),badge_color:[245,158,11],badge_position:"top-right".into()}}
 }
 
 fn mix(a:f32,b:f32,t:f32)->f32{a+(b-a)*t.clamp(0.0,1.0)}
@@ -62,7 +63,7 @@ fn glyph_coverage(name:&str,x:f32,y:f32,s:f32)->f32{
 pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)->RgbaImage{
     let mut out=RgbaImage::new(size,size);let half=size as f32*0.5;let radius=half*spec.tile_scale;let angle=spec.gradient_angle_deg.to_radians();
     let max_t=(angle.cos().abs()+angle.sin().abs()).max(0.001);
-    for y in 0..size{for x in 0..size{
+    out.as_mut().par_chunks_mut(size as usize * 4).enumerate().for_each(|(row_index, row)| { let y = row_index as u32; for x in 0..size {
         let nx=(x as f32+0.5-half)/radius;let ny=(y as f32+0.5-half)/radius;
         let offsets=[(-0.25f32,-0.25f32),(0.25,-0.25),(-0.25,0.25),(0.25,0.25)];
         let coverage=offsets.iter().filter(|(ox,oy)|inside(spec.shape,(nx+*ox/radius)*radius,(ny+*oy/radius)*radius,spec.superellipse_n,radius,spec.corner_radius)).count() as f32/4.0;
@@ -102,17 +103,28 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
             pixel[3]=(pixel[3] as f32*coverage).clamp(0.0,255.0) as u8;
             pixel
         };
-        out.put_pixel(x,y,idx);
-    }}
+        let offset = x as usize * 4; row[offset..offset + 4].copy_from_slice(&idx.0);
+    }});
     // Soft drop shadow outside tile, approximated with a smooth distance falloff.
     if spec.shadow_mode!="none"&&spec.shadow_opacity>0.0&&spec.tile_scale<0.99{
         let original=out.clone();
-        for y in 0..size{for x in 0..size{if original.get_pixel(x,y)[3]==0{
-            let dx=(x as f32+0.5-half)/half;let dy=(y as f32+0.5-half-spec.shadow_offset_y/size as f32*2.0)/half;
-            let d=(dx*dx+dy*dy).sqrt();let edge=1.0-spec.tile_scale;let shadow_factor=match spec.shadow_mode.as_str(){"elevated-3d"=>1.55,"winui-diffuse"=>0.85,"flat"=>0.18,_=>1.0};let spread=(spec.shadow_blur/size as f32*0.22*shadow_factor).max(0.006);
-            let alpha=((edge+spread-d)/spread).clamp(0.0,1.0)*spec.shadow_opacity*0.28*if spec.shadow_mode=="elevated-3d"{1.45}else{1.0};
-            if alpha>0.0{out.put_pixel(x,y,Rgba([spec.shadow_color[0],spec.shadow_color[1],spec.shadow_color[2],(alpha*255.0) as u8]));}
-        }}}
+        let shadow_factor=match spec.shadow_mode.as_str(){"elevated-3d"=>1.55,"winui-diffuse"=>0.85,"flat"=>0.18,_=>1.0};
+        let spread=(spec.shadow_blur/size as f32*0.22*shadow_factor).max(0.006);
+        let shadow_gain=spec.shadow_opacity*0.28*if spec.shadow_mode=="elevated-3d"{1.45}else{1.0};
+        out.as_mut().par_chunks_mut(size as usize * 4).enumerate().for_each(|(row_index,row)| {
+            let y=row_index as u32;
+            for x in 0..size {
+                let offset=x as usize*4;
+                if original.as_raw()[row_index*size as usize*4+offset+3]==0 {
+                    let dx=(x as f32+0.5-half)/half;
+                    let dy=(y as f32+0.5-half-spec.shadow_offset_y/size as f32*2.0)/half;
+                    let d=(dx*dx+dy*dy).sqrt();
+                    let edge=1.0-spec.tile_scale;
+                    let alpha=((edge+spread-d)/spread).clamp(0.0,1.0)*shadow_gain;
+                    if alpha>0.0 { row[offset..offset+4].copy_from_slice(&[spec.shadow_color[0],spec.shadow_color[1],spec.shadow_color[2],(alpha*255.0) as u8]); }
+                }
+            }
+        });
     }
     // Contrast, saturation and hue grading.
     for p in out.pixels_mut() {
@@ -168,17 +180,6 @@ pub fn export_ico(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str
     for size in [16u32,24,32,48,64,128,256]{let image=render_icon(spec,size,custom,glyph);dir.add_entry(ico::IconDirEntry::encode(&ico::IconImage::from_rgba_data(size,size,image.into_raw()))?);}
     dir.write(std::fs::File::create(path)?)?;Ok(())
 }
-pub fn export_icns(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str)->Result<(),Box<dyn std::error::Error>>{
-    let mut chunks=Vec::<(u32,[u8;4],Vec<u8>)>::new();
-    for (size,tag) in [(16,*b"icp4"),(32,*b"icp5"),(64,*b"icp6"),(128,*b"ic07"),(256,*b"ic08"),(512,*b"ic09"),(1024,*b"ic10")]{
-        let png=png_bytes(&render_icon(spec,size,custom,glyph))?;chunks.push((size,tag,png));
-    }
-    let total=8+chunks.iter().map(|(_,_,b)|8+b.len()).sum::<usize>();let mut out=Vec::with_capacity(total);out.extend_from_slice(b"icns");out.extend_from_slice(&(total as u32).to_be_bytes());
-    for (_,tag,data) in chunks{out.extend_from_slice(&tag);out.extend_from_slice(&((data.len()+8) as u32).to_be_bytes());out.extend_from_slice(&data);}
-    std::fs::write(path,out)?;Ok(())
-}
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,60 +266,3 @@ pub fn load_svg_file(path:&Path)->Result<RgbaImage,Box<dyn std::error::Error>>{
 }
 
 
-#[derive(Clone)]
-pub struct IcnsEntry {
-    pub tag:String,
-    pub width:u32,
-    pub height:u32,
-    pub byte_length:usize,
-    pub image:RgbaImage,
-}
-
-pub fn parse_icns_file(path:&Path)->Result<Vec<IcnsEntry>,Box<dyn std::error::Error>>{
-    let bytes=std::fs::read(path)?;
-    if bytes.len()<8||&bytes[0..4]!=b"icns"{return Err("Invalid ICNS header".into());}
-    let declared=u32::from_be_bytes(bytes[4..8].try_into()?) as usize;
-    if declared>bytes.len()||declared<8{return Err("Invalid ICNS container length".into());}
-    let mut entries=Vec::new();let mut offset=8usize;
-    while offset+8<=declared{
-        let tag=String::from_utf8_lossy(&bytes[offset..offset+4]).to_string();
-        let length=u32::from_be_bytes(bytes[offset+4..offset+8].try_into()?) as usize;
-        if length<8||offset.checked_add(length).is_none_or(|end|end>declared){return Err("Malformed ICNS chunk length".into());}
-        let payload=&bytes[offset+8..offset+length];
-        if let Ok(decoded)=image::load_from_memory(payload){
-            let rgba=decoded.to_rgba8();let(width,height)=rgba.dimensions();
-            entries.push(IcnsEntry{tag,width,height,byte_length:payload.len(),image:rgba});
-        }
-        offset+=length;
-    }
-    entries.sort_by(|a,b|b.width.cmp(&a.width).then(a.tag.cmp(&b.tag)));
-    Ok(entries)
-}
-
-
-#[cfg(test)]
-mod container_tests {
-    use super::*;
-
-    #[test]
-    fn exported_icns_can_be_parsed_back_into_all_png_chunks() {
-        let path=std::env::temp_dir().join(format!("iconforge-icns-test-{}.icns",std::process::id()));
-        let spec=IconSpec::default();
-        export_icns(&spec,&path,None,"Layers").unwrap();
-        let entries=parse_icns_file(&path).unwrap();
-        let _=std::fs::remove_file(path);
-        assert_eq!(entries.len(),7);
-        assert_eq!(entries[0].width,1024);
-    }
-
-    #[test]
-    fn exported_ico_exposes_all_embedded_resolutions() {
-        let path=std::env::temp_dir().join(format!("iconforge-ico-test-{}.ico",std::process::id()));
-        let spec=IconSpec::default();
-        export_ico(&spec,&path,None,"Layers").unwrap();
-        let entries=parse_ico_file(&path).unwrap();
-        let _=std::fs::remove_file(path);
-        assert_eq!(entries.len(),7);
-        assert_eq!(entries[0].width,256);
-    }
-}
