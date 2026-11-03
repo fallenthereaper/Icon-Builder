@@ -190,3 +190,28 @@ mod tests {
         assert_eq!(image.get_pixel(32, 32)[3], 255);
     }
 }
+
+#[derive(Clone)]
+pub struct IcoEntry {
+    pub width:u32,
+    pub height:u32,
+    pub bit_depth:u16,
+    pub is_png:bool,
+    pub byte_length:usize,
+    pub image:RgbaImage,
+}
+
+pub fn parse_ico_file(path:&Path)->Result<Vec<IcoEntry>,Box<dyn std::error::Error>>{
+    let directory=ico::IconDir::read(std::fs::File::open(path)?)?;
+    let mut entries=Vec::new();
+    for entry in directory.entries(){
+        let decoded=entry.decode()?;
+        let width=decoded.width();
+        let height=decoded.height();
+        let pixels=decoded.rgba_data().to_vec();
+        let image=RgbaImage::from_raw(width,height,pixels).ok_or("ICO entry had an invalid RGBA buffer")?;
+        entries.push(IcoEntry{width,height,bit_depth:entry.bits_per_pixel(),is_png:entry.is_png(),byte_length:entry.data().len(),image});
+    }
+    entries.sort_by(|a,b|b.width.cmp(&a.width).then(b.bit_depth.cmp(&a.bit_depth)));
+    Ok(entries)
+}
