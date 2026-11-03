@@ -3,13 +3,13 @@ use image::{Rgba, RgbaImage, ImageFormat};
 use std::{path::Path, io::Cursor};
 use rayon::prelude::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Shape { Squircle, WinUi, Circle, Hexagon, Shield, Square }
 impl Shape {
     pub fn label(self)->&'static str { match self {Self::Squircle=>"Liquid Squircle",Self::WinUi=>"WinUI Rounded",Self::Circle=>"Circle",Self::Hexagon=>"Hexagon",Self::Shield=>"Shield",Self::Square=>"Square"} }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct IconSpec {
     pub name:String, pub shape:Shape, pub superellipse_n:f32, pub tile_scale:f32, pub corner_radius:f32,
     pub bg_primary:[u8;3],pub bg_secondary:[u8;3],pub bg_accent:[u8;3],pub gradient_angle_deg:f32,
