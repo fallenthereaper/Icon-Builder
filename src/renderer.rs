@@ -294,3 +294,31 @@ pub fn parse_icns_file(path:&Path)->Result<Vec<IcnsEntry>,Box<dyn std::error::Er
     entries.sort_by(|a,b|b.width.cmp(&a.width).then(a.tag.cmp(&b.tag)));
     Ok(entries)
 }
+
+
+#[cfg(test)]
+mod container_tests {
+    use super::*;
+
+    #[test]
+    fn exported_icns_can_be_parsed_back_into_all_png_chunks() {
+        let path=std::env::temp_dir().join(format!("iconforge-icns-test-{}.icns",std::process::id()));
+        let spec=IconSpec::default();
+        export_icns(&spec,&path,None,"Layers").unwrap();
+        let entries=parse_icns_file(&path).unwrap();
+        let _=std::fs::remove_file(path);
+        assert_eq!(entries.len(),7);
+        assert_eq!(entries[0].width,1024);
+    }
+
+    #[test]
+    fn exported_ico_exposes_all_embedded_resolutions() {
+        let path=std::env::temp_dir().join(format!("iconforge-ico-test-{}.ico",std::process::id()));
+        let spec=IconSpec::default();
+        export_ico(&spec,&path,None,"Layers").unwrap();
+        let entries=parse_ico_file(&path).unwrap();
+        let _=std::fs::remove_file(path);
+        assert_eq!(entries.len(),7);
+        assert_eq!(entries[0].width,256);
+    }
+}
