@@ -14,13 +14,13 @@ pub struct IconSpec {
     pub bg_primary:[u8;3],pub bg_secondary:[u8;3],pub bg_accent:[u8;3],pub gradient_angle_deg:f32,
     pub rim_light_opacity:f32,pub shadow_blur:f32,pub shadow_offset_y:f32,pub shadow_opacity:f32,
     pub glyph_scale:f32,pub glyph_color:[u8;3],pub glyph_offset_x:f32,pub glyph_offset_y:f32,pub glyph_rotation:f32,pub brightness:f32,pub contrast:f32,pub saturation:f32,pub hue_rotate:f32,
-    pub bg_style:String,pub lighting:String,pub shadow_mode:String,pub badge:String,pub badge_color:[u8;3],pub badge_position:String,
+    pub bg_style:String,pub bg_noise:bool,pub bg_noise_opacity:f32,pub lighting:String,pub bevel_thickness:f32,pub reflex_opacity:f32,pub inner_shadow_opacity:f32,pub glyph_shadow:bool,pub glyph_shadow_blur:f32,pub glyph_shadow_opacity:f32,pub glyph_emboss:bool,pub shadow_color:[u8;3],pub shadow_mode:String,pub badge:String,pub badge_color:[u8;3],pub badge_position:String,
 }
 impl Default for IconSpec {
     fn default()->Self{Self{name:"IconForgeApp".into(),shape:Shape::Squircle,superellipse_n:4.5,tile_scale:0.805,corner_radius:0.224,
         bg_primary:[30,32,41],bg_secondary:[19,20,26],bg_accent:[11,12,16],gradient_angle_deg:145.0,
         rim_light_opacity:0.38,shadow_blur:32.0,shadow_offset_y:22.0,shadow_opacity:0.28,glyph_scale:0.62,glyph_color:[56,189,248],
-        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),lighting:"macos-specular".into(),shadow_mode:"macos-dual".into(),badge:"none".into(),badge_color:[245,158,11],badge_position:"top-right".into()}}
+        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),bg_noise:true,bg_noise_opacity:0.04,lighting:"macos-specular".into(),bevel_thickness:1.5,reflex_opacity:0.15,inner_shadow_opacity:0.0,glyph_shadow:true,glyph_shadow_blur:14.0,glyph_shadow_opacity:0.45,glyph_emboss:true,shadow_color:[0,0,0],shadow_mode:"macos-dual".into(),badge:"none".into(),badge_color:[245,158,11],badge_position:"top-right".into()}}
 }
 
 fn mix(a:f32,b:f32,t:f32)->f32{a+(b-a)*t.clamp(0.0,1.0)}
@@ -73,12 +73,14 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
             for c in 0..3{let mid=mix(spec.bg_primary[c] as f32,spec.bg_secondary[c] as f32,t);rgb[c]=(mid*spec.brightness).clamp(0.0,255.0) as u8;}
             let edge=(1.0-(nx.abs().max(ny.abs()))).clamp(0.0,1.0);
             for c in 0..3{rgb[c]=(rgb[c] as f32+spec.bg_accent[c] as f32*(1.0-edge)*0.12).clamp(0.0,255.0) as u8;}
+            if spec.bg_noise {let hash=((x.wrapping_mul(374761393)^y.wrapping_mul(668265263)^((x*y+17).wrapping_mul(1442695041)))&255) as f32/255.0;let noise=(hash-0.5)*spec.bg_noise_opacity*255.0;for c in 0..3{rgb[c]=(rgb[c] as f32+noise).clamp(0.0,255.0) as u8;}}
             let mut pixel=Rgba([rgb[0],rgb[1],rgb[2],255]);
             if let Some(src)=custom{let (sw,sh)=src.dimensions();let u=((nx/spec.glyph_scale+1.0)*0.5).clamp(0.0,1.0);let v=((ny/spec.glyph_scale+1.0)*0.5).clamp(0.0,1.0);let sx=(u*(sw.saturating_sub(1)) as f32) as u32;let sy=(v*(sh.saturating_sub(1)) as f32) as u32;let p=src.get_pixel(sx,sy);if p[3]>0{pixel=*p;}}
-            else{let rot=spec.glyph_rotation.to_radians();let gx=nx-spec.glyph_offset_x/(size as f32);let gy=ny-spec.glyph_offset_y/(size as f32);let rx=gx*rot.cos()-gy*rot.sin();let ry=gx*rot.sin()+gy*rot.cos();let cov=glyph_coverage(glyph,rx,ry,spec.glyph_scale);if cov>0.0{for c in 0..3{pixel[c]=mix(pixel[c] as f32,spec.glyph_color[c] as f32,cov) as u8;}}}
+            undefined
             let rim=((1.0-(nx*nx+ny*ny).sqrt())*7.0).clamp(0.0,1.0)*spec.rim_light_opacity;
-            let glass=if spec.lighting=="glass-reflex"{((nx+ny+0.65).abs()).recip().min(1.0)*0.18}else{0.0};
-            for c in 0..3{pixel[c]=(pixel[c] as f32+rim*34.0+glass*220.0).clamp(0.0,255.0) as u8;}
+            let band=(nx+ny+0.65).abs();let glass=if spec.lighting=="glass-reflex"{(1.0-band*1.8).clamp(0.0,1.0)*spec.reflex_opacity}else{0.0};
+            let inner=((1.0-nx.abs().max(ny.abs()))*spec.bevel_thickness*0.35).clamp(0.0,1.0)*spec.inner_shadow_opacity;
+            for c in 0..3{pixel[c]=(pixel[c] as f32+rim*34.0+glass*220.0-inner*42.0).clamp(0.0,255.0) as u8;}
             pixel
         };
         out.put_pixel(x,y,idx);
@@ -90,7 +92,7 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
             let dx=(x as f32+0.5-half)/half;let dy=(y as f32+0.5-half-spec.shadow_offset_y/size as f32*2.0)/half;
             let d=(dx*dx+dy*dy).sqrt();let edge=1.0-spec.tile_scale;let shadow_factor=match spec.shadow_mode.as_str(){"elevated-3d"=>1.55,"winui-diffuse"=>0.85,"flat"=>0.18,_=>1.0};let spread=(spec.shadow_blur/size as f32*0.22*shadow_factor).max(0.006);
             let alpha=((edge+spread-d)/spread).clamp(0.0,1.0)*spec.shadow_opacity*0.28*if spec.shadow_mode=="elevated-3d"{1.45}else{1.0};
-            if alpha>0.0{out.put_pixel(x,y,Rgba([0,0,0,(alpha*255.0) as u8]));}
+            if alpha>0.0{out.put_pixel(x,y,Rgba([spec.shadow_color[0],spec.shadow_color[1],spec.shadow_color[2],(alpha*255.0) as u8]));}
         }}}
     }
     // Contrast, saturation and hue grading.
