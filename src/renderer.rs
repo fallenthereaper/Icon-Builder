@@ -87,11 +87,54 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
             if alpha>0.0{out.put_pixel(x,y,Rgba([0,0,0,(alpha*255.0) as u8]));}
         }}}
     }
-    // Contrast/saturation grading.
-    for p in out.pixels_mut(){if p[3]==0{continue;}for c in 0..3{p[c]=(((p[c] as f32/255.0-0.5)*spec.contrast+0.5)*255.0).clamp(0.0,255.0) as u8;}}
+    // Contrast, saturation and hue grading.
+    for p in out.pixels_mut() {
+        if p[3] == 0 { continue; }
+        let mut rgb = [p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0];
+        for c in 0..3 { rgb[c] = ((rgb[c] - 0.5) * spec.contrast + 0.5).clamp(0.0, 1.0); }
+        let lum = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+        for c in 0..3 { rgb[c] = (lum + (rgb[c] - lum) * spec.saturation).clamp(0.0, 1.0); }
+        let (h, sat, val) = rgb_to_hsv(rgb);
+        let shifted = hsv_to_rgb((h + spec.hue_rotate / 360.0).rem_euclid(1.0), sat, val);
+        for c in 0..3 { p[c] = (shifted[c] * 255.0).clamp(0.0, 255.0) as u8; }
+    }
+    // Badge is rendered after the clipped tile, matching the original overlay layer.
+    if spec.badge != "none" {
+        let br = (size as f32 * 0.105).max(2.0);
+        let (cx, cy) = match spec.badge_position.as_str() {
+            "top-left" => (size as f32 * 0.19, size as f32 * 0.19),
+            "bottom-left" => (size as f32 * 0.19, size as f32 * 0.81),
+            "bottom-right" => (size as f32 * 0.81, size as f32 * 0.81),
+            _ => (size as f32 * 0.81, size as f32 * 0.19),
+        };
+        for y in 0..size { for x in 0..size {
+            let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+            if d <= br { out.put_pixel(x, y, Rgba([spec.badge_color[0], spec.badge_color[1], spec.badge_color[2], 255])); }
+        }}
+    }
     out
 }
-fn rgb_to_hsv(c:[f32;3])->(f32,f32,f32){let max=c[0].max(c[1]).max(c[2]);let min=c[0].min(c[1]).min(c[2]);let d=max-min;let h=if d==0.0{0.0}else if max==c[0]{((c[1]-c[2])/d).rem_euclid(6.0)/6.0}else if max==c[1]{((c[2]-c[0])/d+2.0)/6.0}else{((c[0]-c[1])/d+4.0)/6.0};(h,if max==0.0{0.0}else{d/max},max)}\nfn hsv_to_rgb(h:f32,s:f32,v:f32)->[f32;3]{let k=|n:f32|(n+h*6.0).rem_euclid(6.0);let f=|n:f32|v-v*s*(0.0f32.max((k(n)).min(4.0-k(n)).min(1.0)));[f(5.0),f(3.0),f(1.0)]}\nfn png_bytes(img:&RgbaImage)->Result<Vec<u8>,Box<dyn std::error::Error>>{let mut bytes=Cursor::new(Vec::new());image::DynamicImage::ImageRgba8(img.clone()).write_to(&mut bytes,ImageFormat::Png)?;Ok(bytes.into_inner())}
+fn rgb_to_hsv(c: [f32; 3]) -> (f32, f32, f32) {
+    let max = c[0].max(c[1]).max(c[2]);
+    let min = c[0].min(c[1]).min(c[2]);
+    let d = max - min;
+    let h = if d == 0.0 { 0.0 }
+        else if max == c[0] { ((c[1] - c[2]) / d).rem_euclid(6.0) / 6.0 }
+        else if max == c[1] { ((c[2] - c[0]) / d + 2.0) / 6.0 }
+        else { ((c[0] - c[1]) / d + 4.0) / 6.0 };
+    (h, if max == 0.0 { 0.0 } else { d / max }, max)
+}
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> [f32; 3] {
+    let c = v * s;
+    let x = c * (1.0 - ((h * 6.0).rem_euclid(2.0) - 1.0).abs());
+    let m = v - c;
+    let rgb = match (h * 6.0).floor() as i32 {
+        0 => [c, x, 0.0], 1 => [x, c, 0.0], 2 => [0.0, c, x],
+        3 => [0.0, x, c], 4 => [x, 0.0, c], _ => [c, 0.0, x],
+    };
+    [rgb[0] + m, rgb[1] + m, rgb[2] + m]
+}
+fn png_bytes(img:&RgbaImage)->Result<Vec<u8>,Box<dyn std::error::Error>>{let mut bytes=Cursor::new(Vec::new());image::DynamicImage::ImageRgba8(img.clone()).write_to(&mut bytes,ImageFormat::Png)?;Ok(bytes.into_inner())}
 pub fn export_png(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str)->Result<(),Box<dyn std::error::Error>>{render_icon(spec,1024,custom,glyph).save_with_format(path,ImageFormat::Png)?;Ok(())}
 pub fn export_ico(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str)->Result<(),Box<dyn std::error::Error>>{
     let mut dir=ico::IconDir::new(ico::ResourceType::Icon);
