@@ -32,6 +32,9 @@ pub struct IconForgeNativeApp {
     dark: bool,
     zoom: f32,
     texture: Option<egui::TextureHandle>,
+    source_texture: Option<egui::TextureHandle>,
+    compare_mode: bool,
+    compare_split: f32,
     mipmap_textures: Vec<(u32, egui::TextureHandle)>,
     needs_rerender: bool,
     status_msg: String,
@@ -62,6 +65,9 @@ impl Default for IconForgeNativeApp {
             dark: true,
             zoom: 1.0,
             texture: None,
+            source_texture: None,
+            compare_mode: false,
+            compare_split: 0.5,
             mipmap_textures: Vec::new(),
             needs_rerender: true,
             status_msg: "Ready · Native Rust renderer".into(),
@@ -130,6 +136,11 @@ impl IconForgeNativeApp {
             image.as_raw(),
         );
         self.texture = Some(ctx.load_texture("icon_preview", color, egui::TextureOptions::LINEAR));
+        self.source_texture = self.imported.as_ref().map(|source| {
+            let source_color = egui::ColorImage::from_rgba_unmultiplied(
+                [source.width() as usize, source.height() as usize], source.as_raw());
+            ctx.load_texture("icon_source_preview", source_color, egui::TextureOptions::LINEAR)
+        });
         self.mipmap_textures.clear();
         let mut rendered_thumbnails:Vec<(u32,egui::TextureHandle)>=Vec::new();
         for mip_size in RESOLUTIONS {
@@ -285,7 +296,9 @@ impl eframe::App for IconForgeNativeApp {
                 ui.label(egui::RichText::new(&self.active_preset).weak().size(11.0));
                 ui.separator();
                 if ui.button("＋ Import").clicked(){self.import_image();}
+                if self.imported.is_some() && ui.selectable_label(self.compare_mode, "Split compare").clicked(){self.compare_mode=!self.compare_mode;}
                 if ui.button("Mockup").clicked(){self.show_mockup=true;}
+                if self.compare_mode { ui.add(egui::Slider::new(&mut self.compare_split,0.1..=0.9).show_value(false).text("Split")); }
                 ui.checkbox(&mut self.show_guides,"Optical guides");
                 ui.checkbox(&mut self.show_pixel_grid,"Pixel grid");
                 ui.separator();
@@ -509,6 +522,16 @@ impl eframe::App for IconForgeNativeApp {
                     let (rect,_)=ui.allocate_exact_size(egui::vec2(side,side),egui::Sense::hover());
                     ui.painter().rect_filled(rect,12.0,egui::Color32::from_rgb(20,21,25));
                     ui.painter().image(tex.id(),rect,egui::Rect::from_min_max(egui::pos2(0.0,0.0),egui::pos2(1.0,1.0)),egui::Color32::WHITE);
+                    if self.compare_mode {
+                        if let Some(source) = &self.source_texture {
+                            let split_x = egui::lerp(rect.left()..=rect.right(), self.compare_split);
+                            let left_clip = egui::Rect::from_min_max(rect.min, egui::pos2(split_x, rect.bottom()));
+                            let source_painter = ui.painter().with_clip_rect(left_clip);
+                            source_painter.image(source.id(), rect, egui::Rect::from_min_max(egui::pos2(0.0,0.0),egui::pos2(1.0,1.0)), egui::Color32::WHITE);
+                            ui.painter().line_segment([egui::pos2(split_x,rect.top()),egui::pos2(split_x,rect.bottom())],egui::Stroke::new(2.0,egui::Color32::from_rgb(10,132,255)));
+                            ui.painter().circle_filled(egui::pos2(split_x,rect.center().y),7.0,egui::Color32::from_rgb(10,132,255));
+                        }
+                    }
                     if self.show_guides {
                         let center=rect.center(); let r=side*0.39;
                         ui.painter().circle_stroke(center,r,egui::Stroke::new(1.0,egui::Color32::from_rgba_unmultiplied(255,255,255,90)));
