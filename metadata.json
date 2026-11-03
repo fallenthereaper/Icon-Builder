@@ -1,6 +1,0 @@
-{
-  "name": "IconForge Studio: WinUI 3 Icon Transformer & EXE Packager",
-  "description": "Professional developer tool to transform and stylize icons with macOS 27 and WinUI 3 accuracy, custom multi-resolution mipmaps, binary ICO export, and native Windows EXE packaging.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
