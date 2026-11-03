@@ -4,218 +4,289 @@ mod renderer;
 
 use eframe::egui;
 use fastframe_fonts::{FontSetup, Weight};
-use renderer::{IconSpec, render_squircle_icon};
+use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns};
+use std::path::PathBuf;
+
+const RESOLUTIONS: [u32; 8] = [1024, 512, 256, 128, 64, 48, 32, 16];
 
 pub struct IconForgeNativeApp {
     spec: IconSpec,
     selected_resolution: u32,
     show_apple_grid: bool,
-    show_safe_zone: bool,
+    show_pixel_grid: bool,
+    dark: bool,
     zoom: f32,
     texture: Option<egui::TextureHandle>,
     needs_rerender: bool,
     status_msg: String,
+    active_preset: String,
+    imported: Option<image::RgbaImage>,
+    imported_name: Option<String>,
+    glyph: String,
 }
 
 impl Default for IconForgeNativeApp {
     fn default() -> Self {
         Self {
-            spec: IconSpec {
-                name: "IconForgeApp".to_string(),
-                superellipse_n: 4.50,
-                tile_scale: 0.805,
-                corner_radius: 0.224,
-                bg_primary: [30, 32, 41],
-                bg_secondary: [19, 20, 26],
-                bg_accent: [11, 12, 16],
-                gradient_angle_deg: 145.0,
-                rim_light_opacity: 0.38,
-                shadow_blur: 32.0,
-                shadow_offset_y: 22.0,
-                shadow_opacity: 0.28,
-                glyph_scale: 0.62,
-                glyph_color: [56, 189, 248],
-            },
+            spec: IconSpec::default(),
             selected_resolution: 512,
-            show_apple_grid: true,
-            show_safe_zone: false,
+            show_apple_grid: false,
+            show_pixel_grid: false,
+            dark: true,
             zoom: 1.0,
             texture: None,
             needs_rerender: true,
-            status_msg: "Ready — Fastframe + egui GPU Renderer active".to_string(),
+            status_msg: "Ready · Native Rust renderer".into(),
+            active_preset: "macOS 27 Pro".into(),
+            imported: None,
+            imported_name: None,
+            glyph: "Layers".into(),
         }
     }
 }
 
 impl IconForgeNativeApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // 1. Initialize Fastframe Native Fonts & Hinting
         let mut fonts = FontSetup::default().definitions();
         let rendering = fastframe_text::detect();
         rendering.apply_to(&mut fonts);
         cc.egui_ctx.set_fonts(fonts);
+        let mut app = Self::default();
+        app.apply_theme(&cc.egui_ctx);
+        app
+    }
 
-        // 2. Apply macOS / Fastframe Native Dark Pro Theme
-        cc.egui_ctx.all_styles_mut(|style| {
-            rendering.apply_to_visuals(&mut style.visuals);
-            style.visuals.window_fill = egui::Color32::from_rgb(24, 24, 27);
-            style.visuals.panel_fill = egui::Color32::from_rgb(29, 29, 32);
-            style.visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(38, 38, 42);
-            style.visuals.selection.bg_fill = egui::Color32::from_rgb(10, 132, 255); // macOS System Blue
-            style.spacing.item_spacing = egui::vec2(8.0, 6.0);
+    fn apply_theme(&self, ctx: &egui::Context) {
+        ctx.all_styles_mut(|style| {
+            style.visuals.dark_mode = self.dark;
+            rendering_style(style, self.dark);
+            style.spacing.item_spacing = egui::vec2(9.0, 7.0);
+            style.visuals.selection.bg_fill = egui::Color32::from_rgb(10, 132, 255);
         });
-
-        Self::default()
     }
 
     fn rebuild_preview_texture(&mut self, ctx: &egui::Context) {
-        let size = 512;
-        let rgba = render_squircle_icon(&self.spec, size);
-        let image = egui::ColorImage::from_rgba_unmultiplied([size as usize, size as usize], &rgba);
-        self.texture = Some(ctx.load_texture(
-            "icon_preview",
-            image,
-            egui::TextureOptions::LINEAR,
-        ));
+        let size = self.selected_resolution.max(16);
+        let image = render_icon(&self.spec, size, self.imported.as_ref(), &self.glyph);
+        let color = egui::ColorImage::from_rgba_unmultiplied(
+            [image.width() as usize, image.height() as usize],
+            image.as_raw(),
+        );
+        self.texture = Some(ctx.load_texture("icon_preview", color, egui::TextureOptions::LINEAR));
         self.needs_rerender = false;
+    }
+
+    fn export(&mut self, kind: &str) {
+        let (name, extension) = match kind { "PNG" => ("png", "png"), "ICNS" => ("icns", "icns"), _ => ("ico", "ico") };
+        let Some(path) = rfd::FileDialog::new()
+            .set_file_name(format!("{}.{}", self.spec.name, extension))
+            .add_filter(extension, &[extension])
+            .save_file() else { return; };
+        let result = match kind {
+            "PNG" => export_png(&self.spec, &path, self.imported.as_ref(), &self.glyph),
+            "ICNS" => export_icns(&self.spec, &path, self.imported.as_ref(), &self.glyph),
+            _ => export_ico(&self.spec, &path, self.imported.as_ref(), &self.glyph),
+        };
+        self.status_msg = match result {
+            Ok(()) => format!("Exported {} · {}", kind, path.display()),
+            Err(e) => format!("Export failed: {e}"),
+        };
+    }
+
+    fn apply_preset(&mut self, name: &str) {
+        self.active_preset = name.into();
+        match name {
+            "WinUI 3 Fluent" => { self.spec.shape = Shape::WinUi; self.spec.tile_scale = 0.84; self.spec.bg_primary=[36,92,150]; self.spec.bg_secondary=[18,44,78]; self.spec.glyph_color=[245,248,255]; self.spec.glyph_scale=0.56; }
+            "iOS 18 Full-Bleed" => { self.spec.shape = Shape::IosSquircle; self.spec.tile_scale=0.96; self.spec.bg_primary=[115,70,210]; self.spec.bg_secondary=[35,24,90]; self.spec.glyph_color=[255,255,255]; }
+            "Cyber Slate" => { self.spec.shape=Shape::Squircle; self.spec.tile_scale=0.805; self.spec.bg_primary=[20,38,55]; self.spec.bg_secondary=[8,15,26]; self.spec.glyph_color=[49,220,190]; }
+            "Titanium Matte" => { self.spec.shape=Shape::Squircle; self.spec.bg_primary=[105,112,122]; self.spec.bg_secondary=[32,36,44]; self.spec.glyph_color=[235,240,246]; }
+            "Retro 98" => { self.spec.shape=Shape::WinUi; self.spec.tile_scale=0.88; self.spec.bg_primary=[0,120,215]; self.spec.bg_secondary=[0,45,110]; self.spec.glyph_color=[255,255,255]; }
+            _ => { self.spec=IconSpec::default(); }
+        }
+        self.needs_rerender=true;
+    }
+
+    fn import_image(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("Images", &["png","jpg","jpeg","webp","bmp","ico"])
+            .pick_file() {
+            match image::open(&path) {
+                Ok(img) => {
+                    self.imported=Some(img.to_rgba8());
+                    self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());
+                    self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());
+                    self.status_msg=format!("Imported {}",path.display());
+                    self.needs_rerender=true;
+                }
+                Err(e)=>self.status_msg=format!("Could not open image: {e}"),
+            }
+        }
+    }
+}
+
+fn rendering_style(style: &mut egui::Style, dark: bool) {
+    if dark {
+        style.visuals.window_fill=egui::Color32::from_rgb(24,24,27);
+        style.visuals.panel_fill=egui::Color32::from_rgb(29,29,32);
+        style.visuals.widgets.noninteractive.bg_fill=egui::Color32::from_rgb(38,38,42);
+        style.visuals.widgets.inactive.bg_fill=egui::Color32::from_rgb(48,48,53);
+    } else {
+        style.visuals.window_fill=egui::Color32::from_rgb(244,245,248);
+        style.visuals.panel_fill=egui::Color32::from_rgb(250,250,252);
     }
 }
 
 impl eframe::App for IconForgeNativeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.needs_rerender || self.texture.is_none() {
-            self.rebuild_preview_texture(ctx);
-        }
+        if self.needs_rerender || self.texture.is_none() { self.rebuild_preview_texture(ctx); }
 
-        // Top macOS / Fastframe Unified Toolbar
-        egui::TopBottomPanel::top("top_toolbar")
-            .exact_height(38.0)
-            .show(ctx, |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui.label(
-                        egui::RichText::new("IconForgeApp")
-                            .font(Weight::SemiBold.font_id(13.5))
-                            .color(egui::Color32::from_rgb(240, 240, 245)),
-                    );
-                    ui.separator();
+        egui::TopBottomPanel::top("toolbar").exact_height(44.0).show(ctx, |ui| {
+            ui.horizontal_centered(|ui| {
+                ui.label(egui::RichText::new("◈  IconForge Pro").font(Weight::SemiBold.font_id(15.0)));
+                ui.separator();
+                ui.label(egui::RichText::new(&self.active_preset).weak().size(11.0));
+                ui.separator();
+                if ui.button("＋ Import").clicked(){self.import_image();}
+                if ui.button("Mockup").clicked(){self.status_msg="OS mockup simulator is being ported next.".into();}
+                ui.checkbox(&mut self.show_apple_grid,"Apple HIG");
+                ui.checkbox(&mut self.show_pixel_grid,"Pixel grid");
+                ui.separator();
+                for res in RESOLUTIONS { if ui.selectable_label(self.selected_resolution==res,format!("{res}")).clicked(){self.selected_resolution=res;self.needs_rerender=true;} }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
+                    if ui.button("Export ▾").clicked(){self.export("ICO");}
+                    if ui.button("ICNS").clicked(){self.export("ICNS");}
+                    if ui.button("PNG").clicked(){self.export("PNG");}
+                    if ui.button(if self.dark{"☼"}else{"☾"}).clicked(){self.dark=!self.dark;self.apply_theme(ctx);}
+                });
+            });
+        });
 
-                    for res in [1024_u32, 512, 256, 128, 64, 48, 32, 16] {
-                        let selected = self.selected_resolution == res;
-                        if ui.selectable_label(selected, format!("{}px", res)).clicked() {
-                            self.selected_resolution = res;
-                        }
+        egui::SidePanel::left("inspector").exact_width(292.0).resizable(false).show(ctx,|ui|{
+            egui::ScrollArea::vertical().show(ui,|ui|{
+                ui.add_space(8.0);
+                ui.label(egui::RichText::new("ICON STUDIO").size(10.0).strong().weak());
+                ui.add_space(5.0);
+                ui.label("Name"); if ui.text_edit_singleline(&mut self.spec.name).changed(){self.needs_rerender=true;}
+                ui.label("Presets");
+                egui::ComboBox::from_id_salt("preset").selected_text(&self.active_preset).show_ui(ui,|ui|{
+                    for p in ["macOS 27 Pro","WinUI 3 Fluent","iOS 18 Full-Bleed","Cyber Slate","Titanium Matte","Retro 98"] {
+                        if ui.selectable_label(self.active_preset==p,p).clicked(){self.apply_preset(p);}
                     }
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Export .ICO / .ICNS").clicked() {
-                            if let Some(path) = rfd::FileDialog::new()
-                                .set_file_name(&format!("{}.ico", self.spec.name))
-                                .save_file()
-                            {
-                                if let Err(e) = renderer::export_multi_res_ico(&self.spec, &path) {
-                                    self.status_msg = format!("Export failed: {}", e);
-                                } else {
-                                    self.status_msg = format!("Saved ICO to {}", path.display());
-                                }
-                            }
-                        }
-                        ui.checkbox(&mut self.show_apple_grid, "HIG Grid");
-                    });
                 });
+                ui.separator();
+                ui.label(egui::RichText::new("SHAPE & GEOMETRY").strong());
+                egui::ComboBox::from_id_salt("shape").selected_text(self.spec.shape.label()).show_ui(ui,|ui|{
+                    for s in [Shape::Squircle,Shape::IosSquircle,Shape::WinUi,Shape::Circle,Shape::Hexagon,Shape::Shield,Shape::Square] {
+                        if ui.selectable_value(&mut self.spec.shape,s,s.label()).changed(){self.needs_rerender=true;}
+                    }
+                });
+                slider(ui,"Tile scale",&mut self.spec.tile_scale,0.55..=1.0,&mut self.needs_rerender);
+                slider(ui,"Superellipse power",&mut self.spec.superellipse_n,2.0..=7.0,&mut self.needs_rerender);
+                slider(ui,"Corner radius",&mut self.spec.corner_radius,0.05..=0.48,&mut self.needs_rerender);
+                ui.separator();
+                ui.label(egui::RichText::new("BACKGROUND").strong());
+                color_row(ui,"Primary",&mut self.spec.bg_primary,&mut self.needs_rerender);
+                color_row(ui,"Secondary",&mut self.spec.bg_secondary,&mut self.needs_rerender);
+                color_row(ui,"Accent",&mut self.spec.bg_accent,&mut self.needs_rerender);
+                slider(ui,"Gradient angle",&mut self.spec.gradient_angle_deg,0.0..=360.0,&mut self.needs_rerender);
+                ui.separator();
+                ui.label(egui::RichText::new("GLYPH").strong());
+                egui::ComboBox::from_id_salt("glyph").selected_text(&self.glyph).show_ui(ui,|ui|{
+                    for g in ["Layers","Terminal","Code","Cpu","Database","Rocket","Shield","Star","Globe","Box"] {
+                        if ui.selectable_label(self.glyph==g,g).clicked(){self.glyph=g.into();self.needs_rerender=true;}
+                    }
+                });
+                slider(ui,"Glyph scale",&mut self.spec.glyph_scale,0.15..=0.9,&mut self.needs_rerender);
+                color_row(ui,"Glyph colour",&mut self.spec.glyph_color,&mut self.needs_rerender);
+                if self.imported.is_some() && ui.button("Remove imported image").clicked(){self.imported=None;self.imported_name=None;self.needs_rerender=true;}
+                ui.separator();
+                ui.label(egui::RichText::new("LIGHTING & SHADOWS").strong());
+                slider(ui,"Rim light",&mut self.spec.rim_light_opacity,0.0..=1.0,&mut self.needs_rerender);
+                slider(ui,"Shadow blur",&mut self.spec.shadow_blur,0.0..=64.0,&mut self.needs_rerender);
+                slider(ui,"Shadow offset",&mut self.spec.shadow_offset_y,0.0..=48.0,&mut self.needs_rerender);
+                slider(ui,"Shadow opacity",&mut self.spec.shadow_opacity,0.0..=1.0,&mut self.needs_rerender);
+                ui.separator();
+                ui.label(egui::RichText::new("IMAGE GRADING").strong());
+                slider(ui,"Brightness",&mut self.spec.brightness,0.2..=2.0,&mut self.needs_rerender);
+                slider(ui,"Contrast",&mut self.spec.contrast,0.2..=2.0,&mut self.needs_rerender);
+                slider(ui,"Saturation",&mut self.spec.saturation,0.0..=2.0,&mut self.needs_rerender);
+                slider(ui,"Hue rotation",&mut self.spec.hue_rotate,-180.0..=180.0,&mut self.needs_rerender);
             });
+        });
 
-        // Left Inspector Panel
-        egui::SidePanel::left("inspector_left")
-            .exact_width(280.0)
-            .resizable(false)
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
+        egui::SidePanel::right("mipmaps").exact_width(174.0).resizable(false).show(ctx,|ui|{
+            ui.label(egui::RichText::new("MIPMAP PREVIEW").strong().size(11.0));
+            ui.separator();
+            egui::ScrollArea::vertical().show(ui,|ui|{
+                for res in [256_u32,128,64,48,32,16] {
+                    let img=render_icon(&self.spec,res,self.imported.as_ref(),&self.glyph);
+                    let ci=egui::ColorImage::from_rgba_unmultiplied([res as usize,res as usize],img.as_raw());
+                    let tex=ctx.load_texture(format!("mipmap-{res}"),ci,egui::TextureOptions::LINEAR);
+                    ui.horizontal(|ui|{
+                        ui.image((tex.id(),egui::vec2(42.0,42.0)));
+                        ui.vertical(|ui|{
+                            ui.label(format!("{res} × {res}"));
+                            if ui.small_button(if self.selected_resolution==res{"Selected"}else{"Preview"}).clicked(){self.selected_resolution=res;self.needs_rerender=true;}
+                        });
+                    });
                     ui.add_space(6.0);
-                    ui.label(egui::RichText::new("Superellipse & Geometry").font(Weight::SemiBold.font_id(12.0)));
-                    egui::Grid::new("geo_grid").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
-                        ui.label("Exponent (n)");
-                        if ui.add(egui::Slider::new(&mut self.spec.superellipse_n, 2.0..=6.0)).changed() {
-                            self.needs_rerender = true;
-                        }
-                        ui.end_row();
-
-                        ui.label("Tile Scale");
-                        if ui.add(egui::Slider::new(&mut self.spec.tile_scale, 0.60..=1.0)).changed() {
-                            self.needs_rerender = true;
-                        }
-                        ui.end_row();
-                    });
-
-                    ui.separator();
-                    ui.label(egui::RichText::new("Specular & Elevation").font(Weight::SemiBold.font_id(12.0)));
-                    egui::Grid::new("light_grid").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
-                        ui.label("Rim Light");
-                        if ui.add(egui::Slider::new(&mut self.spec.rim_light_opacity, 0.0..=1.0)).changed() {
-                            self.needs_rerender = true;
-                        }
-                        ui.end_row();
-
-                        ui.label("Shadow Blur");
-                        if ui.add(egui::Slider::new(&mut self.spec.shadow_blur, 0.0..=64.0)).changed() {
-                            self.needs_rerender = true;
-                        }
-                        ui.end_row();
-
-                        ui.label("Shadow Y");
-                        if ui.add(egui::Slider::new(&mut self.spec.shadow_offset_y, 0.0..=40.0)).changed() {
-                            self.needs_rerender = true;
-                        }
-                        ui.end_row();
-                    });
-                });
-            });
-
-        // Status Bar
-        egui::TopBottomPanel::bottom("status_bar")
-            .exact_height(24.0)
-            .show(ctx, |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui.label(egui::RichText::new(&self.status_msg).size(11.0));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "{}×{} · n={:.2} · Scale {:.1}%",
-                                self.selected_resolution,
-                                self.selected_resolution,
-                                self.spec.superellipse_n,
-                                self.spec.tile_scale * 100.0
-                            ))
-                            .monospace()
-                            .size(11.0),
-                        );
-                    });
-                });
-            });
-
-        // Central Viewport
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.centered_and_justified(|ui| {
-                if let Some(tex) = &self.texture {
-                    let display_size = egui::vec2(380.0 * self.zoom, 380.0 * self.zoom);
-                    ui.image((tex.id(), display_size));
                 }
+            });
+        });
+
+        egui::TopBottomPanel::bottom("status").exact_height(26.0).show(ctx,|ui|{
+            ui.horizontal_centered(|ui|{
+                ui.label(egui::RichText::new(&self.status_msg).size(10.5));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
+                    ui.add(egui::Slider::new(&mut self.zoom,0.5..=1.5).show_value(false).text("Zoom"));
+                    ui.label(format!("{}×{} · RGBA8 · n={:.2}",self.selected_resolution,self.selected_resolution,self.spec.superellipse_n));
+                });
+            });
+        });
+
+        egui::CentralPanel::default().show(ctx,|ui|{
+            ui.vertical_centered(|ui|{
+                ui.add_space(12.0);
+                ui.label(egui::RichText::new("CANVAS WORKSPACE").weak().size(10.0));
+                ui.add_space(10.0);
+                if let Some(tex)=&self.texture {
+                    let available=ui.available_size();
+                    let side=(available.x.min(available.y)*0.72*self.zoom).clamp(120.0,560.0);
+                    let (rect,_)=ui.allocate_exact_size(egui::vec2(side,side),egui::Sense::hover());
+                    ui.painter().rect_filled(rect,12.0,egui::Color32::from_rgb(20,21,25));
+                    ui.painter().image(tex.id(),rect,egui::Rect::from_min_max(egui::pos2(0.0,0.0),egui::pos2(1.0,1.0)),egui::Color32::WHITE);
+                    if self.show_apple_grid {
+                        let center=rect.center(); let r=side*0.39;
+                        ui.painter().circle_stroke(center,r,egui::Stroke::new(1.0,egui::Color32::from_rgba_unmultiplied(255,255,255,90)));
+                        ui.painter().line_segment([egui::pos2(center.x-r,center.y),egui::pos2(center.x+r,center.y)],egui::Stroke::new(1.0,egui::Color32::from_rgba_unmultiplied(255,255,255,55)));
+                        ui.painter().line_segment([egui::pos2(center.x,center.y-r),egui::pos2(center.x,center.y+r)],egui::Stroke::new(1.0,egui::Color32::from_rgba_unmultiplied(255,255,255,55)));
+                    }
+                    if self.show_pixel_grid && self.selected_resolution<=64 {
+                        let n=self.selected_resolution as usize; let step=side/n as f32;
+                        for i in 1..n {let p=rect.left()+i as f32*step;ui.painter().line_segment([egui::pos2(p,rect.top()),egui::pos2(p,rect.bottom())],egui::Stroke::new(0.35,egui::Color32::from_rgba_unmultiplied(255,255,255,35)));let p=rect.top()+i as f32*step;ui.painter().line_segment([egui::pos2(rect.left(),p),egui::pos2(rect.right(),p)],egui::Stroke::new(0.35,egui::Color32::from_rgba_unmultiplied(255,255,255,35)));}
+                    }
+                }
+                if let Some(name)=&self.imported_name {ui.label(format!("Source: {name}"));}
             });
         });
     }
 }
 
+fn slider(ui:&mut egui::Ui,label:&str,value:&mut f32,range:std::ops::RangeInclusive<f32>,dirty:&mut bool){
+    ui.horizontal(|ui|{ui.label(label);if ui.add(egui::Slider::new(value,range).show_value(true)).changed(){*dirty=true;}});
+}
+fn color_row(ui:&mut egui::Ui,label:&str,color:&mut [u8;3],dirty:&mut bool){
+    ui.horizontal(|ui|{
+        ui.label(label);
+        let mut c=egui::Color32::from_rgb(color[0],color[1],color[2]);
+        if ui.color_edit_button_srgba(&mut c).changed(){*color=[c.r(),c.g(),c.b()];*dirty=true;}
+    });
+}
+
 fn main() -> eframe::Result {
-    let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1240.0, 800.0])
-            .with_min_inner_size([960.0, 640.0])
-            .with_title("IconForgeApp"),
+    let native_options=eframe::NativeOptions{
+        viewport:egui::ViewportBuilder::default().with_inner_size([1440.0,900.0]).with_min_inner_size([1120.0,700.0]).with_title("IconForge Pro"),
         ..Default::default()
     };
-
-    eframe::run_native(
-        "IconForgeApp",
-        native_options,
-        Box::new(|cc| Ok(Box::new(IconForgeNativeApp::new(cc)))),
-    )
+    eframe::run_native("IconForge Pro",native_options,Box::new(|cc|Ok(Box::new(IconForgeNativeApp::new(cc)))))
 }
