@@ -160,37 +160,27 @@ impl IconForgeNativeApp {
     }
 
     fn import_image(&mut self) {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Images", &["png","jpg","jpeg","webp","bmp","ico","svg"])
-            .pick_file() {
-            if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("svg")) {
-                match load_svg_file(&path){Ok(img)=>{self.ico_entries.clear();self.imported=Some(img);self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported SVG · rasterized at up to 1024px · {}",path.display());self.needs_rerender=true;},Err(e)=>self.status_msg=format!("Could not render SVG: {e}")}
-            } else if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("ico")) {
-                match parse_ico_file(&path) {
-                    Ok(entries) if !entries.is_empty() => {
-                        self.ico_entries=entries;
-                        self.selected_ico_entry=0;
-                        self.imported=Some(self.ico_entries[0].image.clone());
-                        self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());
-                        self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());
-                        self.status_msg=format!("Imported ICO · {} embedded resolutions",self.ico_entries.len());
-                        self.needs_rerender=true;
-                    }
-                    Ok(_) => self.status_msg="ICO file contains no image entries".into(),
-                    Err(e)=>self.status_msg=format!("Could not parse ICO: {e}"),
-                }
-            } else {
-                match image::open(&path) {
-                    Ok(img) => {
-                        self.ico_entries.clear();self.selected_ico_entry=0;
-                        self.imported=Some(img.to_rgba8());
-                        self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());
-                        self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());
-                        self.status_msg=format!("Imported {}",path.display());
-                        self.needs_rerender=true;
-                    }
-                    Err(e)=>self.status_msg=format!("Could not open image: {e}"),
-                }
+        if let Some(path)=rfd::FileDialog::new().add_filter("Images",&["png","jpg","jpeg","webp","bmp","ico","svg"]).pick_file(){
+            self.load_image_path(&path);
+        }
+    }
+
+    fn load_image_path(&mut self,path:&std::path::Path){
+        if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("svg")){
+            match load_svg_file(path){
+                Ok(img)=>{self.ico_entries.clear();self.imported=Some(img);self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported SVG · rasterized at up to 1024px · {}",path.display());self.needs_rerender=true;},
+                Err(e)=>self.status_msg=format!("Could not render SVG: {e}")
+            }
+        }else if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("ico")){
+            match parse_ico_file(path){
+                Ok(entries) if !entries.is_empty()=>{self.ico_entries=entries;self.selected_ico_entry=0;self.imported=Some(self.ico_entries[0].image.clone());self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported ICO · {} embedded resolutions",self.ico_entries.len());self.needs_rerender=true;},
+                Ok(_)=>self.status_msg="ICO file contains no image entries".into(),
+                Err(e)=>self.status_msg=format!("Could not parse ICO: {e}")
+            }
+        }else{
+            match image::open(path){
+                Ok(img)=>{self.ico_entries.clear();self.selected_ico_entry=0;self.imported=Some(img.to_rgba8());self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported {}",path.display());self.needs_rerender=true;},
+                Err(e)=>self.status_msg=format!("Could not open image: {e}")
             }
         }
     }
@@ -210,6 +200,8 @@ fn rendering_style(style: &mut egui::Style, dark: bool) {
 
 impl eframe::App for IconForgeNativeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let dropped=ctx.input(|i|i.raw.dropped_files.clone());
+        if let Some(path)=dropped.into_iter().find_map(|file|file.path){self.load_image_path(&path);}
         if self.needs_rerender || self.texture.is_none() { self.rebuild_preview_texture(ctx); }
 
         egui::TopBottomPanel::top("toolbar").exact_height(44.0).show(ctx, |ui| {
