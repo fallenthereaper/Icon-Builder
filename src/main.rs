@@ -131,7 +131,7 @@ impl IconForgeNativeApp {
                 self.spec.lighting="glass-reflex".into(); self.spec.rim_light_opacity=0.55;
                 self.spec.glyph_color=[255,255,255]; self.spec.glyph_scale=0.65;
             },
-            "WinUI 3 Fluent" => {
+            "WinUI 3 Fluent Studio" => {
                 self.spec.shape=Shape::WinUi; self.spec.bg_style="acrylic-glass".into();
                 self.spec.lighting="chamfer-edge".into(); self.spec.shadow_mode="winui-diffuse".into();
                 self.spec.tile_scale=0.84; self.spec.bg_primary=[36,92,150]; self.spec.bg_secondary=[18,44,78];
@@ -157,7 +157,7 @@ impl IconForgeNativeApp {
                 self.spec.bg_secondary=[3,105,161]; self.spec.bg_accent=[7,89,133]; self.spec.glyph_color=[255,255,255];
                 self.spec.lighting="subtle".into(); self.spec.shadow_mode="winui-diffuse".into();
             },
-            "Retro 98" => {
+            "Windows 98 Classic" => {
                 self.spec.shape=Shape::WinUi; self.spec.tile_scale=0.88; self.spec.corner_radius=0.08;
                 self.spec.bg_style="solid".into(); self.spec.bg_primary=[192,192,192]; self.spec.bg_secondary=[192,192,192];
                 self.spec.glyph_color=[0,0,128]; self.spec.lighting="chamfer-edge".into(); self.spec.rim_light_opacity=0.9;
@@ -245,7 +245,7 @@ impl eframe::App for IconForgeNativeApp {
                 ui.label("Name"); if ui.text_edit_singleline(&mut self.spec.name).changed(){self.needs_rerender=true;}
                 ui.label("Presets");
                 egui::ComboBox::from_id_salt("preset").selected_text(&self.active_preset).show_ui(ui,|ui|{
-                    for p in ["macOS 27 Pro","macOS Tahoe Glass","WinUI 3 Fluent","iOS 18 Full-Bleed","Cyber Slate","Titanium Matte","Material You Adaptive","Retro 98"] {
+                    for p in ["macOS 27 Pro","macOS Tahoe Glass","WinUI 3 Fluent Studio","iOS 18 Full-Bleed","Cyber Slate","Titanium Matte","Material You Adaptive","Windows 98 Classic"] {
                         if ui.selectable_label(self.active_preset==p,p).clicked(){self.apply_preset(p);}
                     }
                 });
