@@ -191,7 +191,7 @@ impl eframe::App for IconForgeNativeApp {
                 slider(ui,"Corner radius",&mut self.spec.corner_radius,0.05..=0.48,&mut self.needs_rerender);
                 ui.separator();
                 ui.label(egui::RichText::new("BACKGROUND").strong());
-                egui::ComboBox::from_id_salt("background-style").selected_text(&self.spec.bg_style).show_ui(ui,|ui|{for style in ["linear-gradient","radial-gradient","acrylic-glass","dark-obsidian","titanium-metallic","carbon-fiber","solid"]{if ui.selectable_value(&mut self.spec.bg_style,style.into(),style).changed(){self.needs_rerender=true;}}});
+                egui::ComboBox::from_id_salt("background-style").selected_text(&self.spec.bg_style).show_ui(ui,|ui|{for style in ["linear-gradient","radial-gradient","acrylic-glass","dark-obsidian","titanium-metallic","mesh-aurora","matte-ceramic","carbon-fiber","solid"]{if ui.selectable_value(&mut self.spec.bg_style,style.into(),style).changed(){self.needs_rerender=true;}}});
                 color_row(ui,"Primary",&mut self.spec.bg_primary,&mut self.needs_rerender);
                 color_row(ui,"Secondary",&mut self.spec.bg_secondary,&mut self.needs_rerender);
                 color_row(ui,"Accent",&mut self.spec.bg_accent,&mut self.needs_rerender);
@@ -200,7 +200,7 @@ impl eframe::App for IconForgeNativeApp {
                 ui.separator();
                 ui.label(egui::RichText::new("GLYPH").strong());
                 egui::ComboBox::from_id_salt("glyph").selected_text(&self.glyph).show_ui(ui,|ui|{
-                    for g in ["Layers","Terminal","Code","Cpu","Database","Rocket","Shield","Star","Globe","Box"] {
+                    for g in ["Layers","Terminal","Code2","Cpu","Database","Rocket","ShieldCheck","Sparkles","CloudLightning","Box","Globe","Gamepad2"] {
                         if ui.selectable_label(self.glyph==g,g).clicked(){self.glyph=g.into();self.needs_rerender=true;}
                     }
                 });
@@ -212,8 +212,9 @@ impl eframe::App for IconForgeNativeApp {
                 if self.imported.is_some() && ui.button("Remove imported image").clicked(){self.imported=None;self.imported_name=None;self.needs_rerender=true;}
                 ui.separator();
                 ui.label(egui::RichText::new("LIGHTING & SHADOWS").strong());
-                egui::ComboBox::from_id_salt("lighting-mode").selected_text(&self.spec.lighting).show_ui(ui,|ui|{for mode in ["macos-specular","glass-reflex","subtle","none"]{if ui.selectable_value(&mut self.spec.lighting,mode.into(),mode).changed(){self.needs_rerender=true;}}});
+                egui::ComboBox::from_id_salt("lighting-mode").selected_text(&self.spec.lighting).show_ui(ui,|ui|{for mode in ["macos-specular","glass-reflex","chamfer-edge","subtle","none"]{if ui.selectable_value(&mut self.spec.lighting,mode.into(),mode).changed(){self.needs_rerender=true;}}});
                 slider(ui,"Rim light",&mut self.spec.rim_light_opacity,0.0..=1.0,&mut self.needs_rerender);
+                egui::ComboBox::from_id_salt("shadow-mode").selected_text(&self.spec.shadow_mode).show_ui(ui,|ui|{for mode in ["macos-dual","winui-diffuse","elevated-3d","flat","none"]{if ui.selectable_value(&mut self.spec.shadow_mode,mode.into(),mode).changed(){self.needs_rerender=true;}}});
                 slider(ui,"Shadow blur",&mut self.spec.shadow_blur,0.0..=64.0,&mut self.needs_rerender);
                 slider(ui,"Shadow offset",&mut self.spec.shadow_offset_y,0.0..=48.0,&mut self.needs_rerender);
                 slider(ui,"Shadow opacity",&mut self.spec.shadow_opacity,0.0..=1.0,&mut self.needs_rerender);
