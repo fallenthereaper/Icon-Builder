@@ -273,7 +273,7 @@ impl eframe::App for IconForgeNativeApp {
                 slider(ui,"Glyph Y offset",&mut self.spec.glyph_offset_y,-80.0..=80.0,&mut self.needs_rerender);
                 slider(ui,"Glyph rotation",&mut self.spec.glyph_rotation,-180.0..=180.0,&mut self.needs_rerender);
                 color_row(ui,"Glyph colour",&mut self.spec.glyph_color,&mut self.needs_rerender);
-                if self.imported.is_some() && ui.button("Remove imported image").clicked(){self.imported=None;self.imported_name=None;self.needs_rerender=true;}
+                if self.imported.is_some() && ui.button("Remove imported image").clicked(){self.imported=None;self.imported_name=None;self.ico_entries.clear();self.selected_ico_entry=0;self.needs_rerender=true;}
                 ui.separator();
                 ui.label(egui::RichText::new("LIGHTING & SHADOWS").strong());
                 egui::ComboBox::from_id_salt("lighting-mode").selected_text(&self.spec.lighting).show_ui(ui,|ui|{for mode in ["macos-specular","glass-reflex","chamfer-edge","subtle","none"]{if ui.selectable_value(&mut self.spec.lighting,mode.into(),mode).changed(){self.needs_rerender=true;}}});
