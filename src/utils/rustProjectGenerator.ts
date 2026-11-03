@@ -15,11 +15,14 @@ export interface RustProjectFiles {
   mainRs: string;
   rendererRs: string;
   readmeMd: string;
+  githubWorkflowYml: string;
+  gitignore: string;
 }
 
 /**
  * Generates an authentic, production-ready Rust desktop project powered by
- * `egui`, `eframe`, and `crmne/fastframe` (`fastframe-fonts`, `fastframe-text`, `fastframe-theme`).
+ * `egui`, `eframe`, and `crmne/fastframe` (`fastframe-fonts`, `fastframe-text`, `fastframe-theme`),
+ * complete with GitHub Actions CI/CD to automatically compile and publish native `.exe` releases on GitHub.
  */
 export function generateRustFastframeSource(
   config: IconConfig,
@@ -56,7 +59,7 @@ fastframe-theme = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" 
 fastframe-icons = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" }
 
 # Native Image & Binary Encoding Pipeline
-image = { version = "0.25", default-features = false, features = ["png", "ico", " bmp", "jpeg", "webp"] }
+image = { version = "0.25", default-features = false, features = ["png", "ico", "bmp", "jpeg", "webp"] }
 ico = "0.4"
 icns = "0.3"
 rfd = "0.15"
@@ -116,16 +119,16 @@ impl Default for IconForgeNativeApp {
                 superellipse_n: ${config.superellipsePower.toFixed(2)},
                 tile_scale: ${config.tileScale.toFixed(3)},
                 corner_radius: ${config.cornerRadius.toFixed(3)},
-                bg_primary: [${ hexToRgbStr(config.bgColor1) }],
-                bg_secondary: [${ hexToRgbStr(config.bgColor2) }],
-                bg_accent: [${ hexToRgbStr(config.bgColor3) }],
+                bg_primary: [${hexToRgbStr(config.bgColor1)}],
+                bg_secondary: [${hexToRgbStr(config.bgColor2)}],
+                bg_accent: [${hexToRgbStr(config.bgColor3)}],
                 gradient_angle_deg: ${config.bgGradientAngle.toFixed(1)},
                 rim_light_opacity: ${config.rimLightOpacity.toFixed(2)},
                 shadow_blur: ${config.shadowBlur.toFixed(1)},
                 shadow_offset_y: ${config.shadowOffsetY.toFixed(1)},
                 shadow_opacity: ${config.shadowOpacity.toFixed(2)},
                 glyph_scale: ${config.glyphScale.toFixed(2)},
-                glyph_color: [${ hexToRgbStr(config.glyphColor) }],
+                glyph_color: [${hexToRgbStr(config.glyphColor)}],
             },
             selected_resolution: 512,
             show_apple_grid: true,
@@ -382,22 +385,153 @@ pub fn export_multi_res_ico(spec: &IconSpec, path: &Path) -> Result<(), Box<dyn 
 }
 `;
 
-  const readmeMd = `# ${metadata.appName} — Native Rust (\`egui\` + \`fastframe\`) Project
+  const githubWorkflowYml = `name: Build Native Executables & Publish Release
 
-This repository contains the complete, standalone Rust desktop application built with:
-- **[emilk/egui](https://github.com/emilk/egui)** (\`0.36.2\`) & **eframe** for immediate-mode GPU rendering
-- **[fastframe.dev](https://fastframe.dev)** (\`crmne/fastframe\`) for native typography (\`fastframe-fonts\`), OS subpixel hinting (\`fastframe-text\`), and native desktop theming (\`fastframe-theme\`)
-- Pre-rendered multi-resolution Windows \`.ico\`, Apple macOS \`.icns\`, and pre-packaged Windows \`.exe\` inside \`assets/\`.
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
 
-## Quick Build & Run
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Native Binary on \${{ matrix.os }}
+    runs-on: \${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: ${pkgName}-windows-x64.exe
+            binary_path: target/release/${pkgName}.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: ${pkgName}-macos-arm64
+            binary_path: target/release/${pkgName}
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: ${pkgName}-linux-x64
+            binary_path: target/release/${pkgName}
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: \${{ matrix.target }}
+
+      - name: Install Linux Dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libasound2-dev libfontconfig1-dev
+
+      - name: Build Standalone Native Executable
+        run: cargo build --release --target \${{ matrix.target }}
+
+      - name: Stage Artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "\${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/\${{ matrix.target }}/release/${pkgName}.exe dist/\${{ matrix.artifact_name }}
+          else
+            cp target/\${{ matrix.target }}/release/${pkgName} dist/\${{ matrix.artifact_name }}
+            chmod +x dist/\${{ matrix.artifact_name }}
+          fi
+
+      - name: Upload Build Artifact to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: \${{ matrix.artifact_name }}
+          path: dist/\${{ matrix.artifact_name }}
+
+  publish-github-release:
+    name: Publish Release with Native Executables
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Compiled Binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: \${{ github.ref_name || 'v1.0.0' }}
+          name: "${metadata.appName} \${{ github.ref_name || 'v1.0.0' }} — Fully Native Release"
+          body: |
+            ## Native Standalone Desktop Release
+            
+            Compiled natively with zero web runtime using:
+            - **[emilk/egui](https://github.com/emilk/egui)** immediate-mode GPU framework
+            - **[fastframe.dev](https://fastframe.dev)** (\`crmne/fastframe\`) native typography & themes
+            - Embedded \`.ico\` and \`.icns\` assets
+            
+            ### Download Binaries:
+            - **Windows**: \`${pkgName}-windows-x64.exe\`
+            - **macOS (Apple Silicon)**: \`${pkgName}-macos-arm64\`
+            - **Linux**: \`${pkgName}-linux-x64\`
+          files: release-artifacts/**/*
+`;
+
+  const gitignore = `/target
+Cargo.lock
+**/*.rs.bk
+.DS_Store
+dist/
+release-artifacts/
+`;
+
+  const readmeMd = `# ${metadata.appName} — Native Rust (\`egui\` + \`fastframe\`)
+
+This repository is a 100% native Rust desktop application built with:
+- **[emilk/egui](https://github.com/emilk/egui)** (\`0.36.2\`) & **eframe** (GPU rendered, zero web technology).
+- **[fastframe.dev](https://fastframe.dev)** (\`crmne/fastframe\`) for native desktop typography, OS subpixel hinting, and dark graphite styling.
+- **Automated GitHub Actions Release**: Every push automatically builds and publishes native \`.exe\` executables on GitHub!
+
+---
+
+## 🚀 How to Get Your Pre-Built \`.exe\` from GitHub (Zero Local Setup)
+
+1. **Create a GitHub Repository**:
+   - Go to [github.com/new](https://github.com/new).
+   - Name your repo (e.g. \`${pkgName}\`) and click **Create repository**.
+
+2. **Upload or Push this Folder**:
+   - Either drag and drop this unzipped folder into your GitHub repository web UI, or in your terminal:
+   \`\`\`bash
+   git init
+   git add .
+   git commit -m "Initial commit of native egui + fastframe app"
+   git branch -M main
+   git remote add origin https://github.com/<YOUR_USERNAME>/${pkgName}.git
+   git push -u origin main
+   \`\`\`
+
+3. **Get Your Compiled \`.exe\`**:
+   - Go to the **Actions** tab in your GitHub repository.
+   - GitHub's cloud runners will automatically compile the native Windows \`.exe\` and macOS binary.
+   - Once complete, download the executable directly from the **Releases** tab or Artifacts!
+
+---
+
+## 💻 Optional: Build Locally (If you have Rust installed)
 
 \`\`\`bash
-# Run natively on macOS, Windows, or Linux
 cargo run --release
-
-# Build standalone native binary
-cargo build --release
 \`\`\`
+The compiled standalone \`.exe\` will be saved to \`target/release/${pkgName}.exe\`.
 `;
 
   return {
@@ -406,6 +540,8 @@ cargo build --release
     mainRs,
     rendererRs,
     readmeMd,
+    githubWorkflowYml,
+    gitignore,
   };
 }
 
@@ -420,8 +556,8 @@ function hexToRgbStr(hex: string): string {
 }
 
 /**
- * Packages the complete Rust `egui` + `fastframe` source crate AND pre-rendered
- * native assets (`.ico`, `.icns`, `1024x1024.png`) into a downloadable `.zip`.
+ * Packages the complete Rust `egui` + `fastframe` source crate, the GitHub Actions
+ * automated `.exe` builder workflow, and pre-rendered native assets into a downloadable `.zip`.
  */
 export async function createRustFastframeZip(
   config: IconConfig,
@@ -432,10 +568,15 @@ export async function createRustFastframeZip(
   const zip = new JSZip();
   const files = generateRustFastframeSource(config, metadata);
 
-  if (onProgress) onProgress(15, 'Generating Cargo.toml & fastframe Rust modules...');
+  if (onProgress) onProgress(15, 'Generating Cargo.toml, build.rs & GitHub Actions release workflow...');
   zip.file('Cargo.toml', files.cargoToml);
   zip.file('build.rs', files.buildRs);
   zip.file('README.md', files.readmeMd);
+  zip.file('.gitignore', files.gitignore);
+
+  const ghFolder = zip.folder('.github')!;
+  const workflowsFolder = ghFolder.folder('workflows')!;
+  workflowsFolder.file('release.yml', files.githubWorkflowYml);
 
   const srcFolder = zip.folder('src')!;
   srcFolder.file('main.rs', files.mainRs);
@@ -470,7 +611,7 @@ export async function createRustFastframeZip(
   assetsFolder.file('app_icon.icns', generateIcnsBinary(icnsSources));
   assetsFolder.file('icon_1024x1024.png', buffers.get(1024)!);
 
-  if (onProgress) onProgress(95, 'Compressing Rust crate archive...');
+  if (onProgress) onProgress(95, 'Compressing GitHub-ready Rust crate archive...');
   const blob = await zip.generateAsync({ type: 'blob' });
   if (onProgress) onProgress(100, 'Complete');
   return blob;

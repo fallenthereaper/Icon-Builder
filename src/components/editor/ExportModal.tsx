@@ -40,8 +40,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   initialTab = 'exe',
 }) => {
   const [activeTab, setActiveTab] = useState<'exe' | 'rust' | 'ico' | 'icns' | 'png' | 'zip'>(initialTab);
-  const [activeRustFile, setActiveRustFile] = useState<'Cargo.toml' | 'src/main.rs' | 'src/renderer.rs' | 'build.rs'>('Cargo.toml');
+  const [activeRustFile, setActiveRustFile] = useState<
+    'Cargo.toml' | 'src/main.rs' | 'src/renderer.rs' | 'build.rs' | '.github/workflows/release.yml' | 'README.md'
+  >('Cargo.toml');
   const [copied, setCopied] = useState(false);
+  const [copiedGitCmds, setCopiedGitCmds] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ percent: number; status: string } | null>(null);
 
@@ -228,7 +231,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       ? rustFiles.mainRs
       : activeRustFile === 'src/renderer.rs'
       ? rustFiles.rendererRs
-      : rustFiles.buildRs;
+      : activeRustFile === 'build.rs'
+      ? rustFiles.buildRs
+      : activeRustFile === '.github/workflows/release.yml'
+      ? rustFiles.githubWorkflowYml
+      : rustFiles.readmeMd;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
@@ -284,12 +291,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           {/* TAB 1: WORKING WINDOWS .EXE */}
           {activeTab === 'exe' && (
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-[#141416] border border-white/[0.08] text-xs space-y-1">
-                <div className="font-semibold text-neutral-100">
-                  Native Windows GUI Executable (PE32 with IAT &amp; Embedded Resource Directory)
+              <div className="p-3 rounded-lg bg-[#141416] border border-white/[0.08] text-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-neutral-100">
+                    Standalone Windows GUI Executable (PE32 Binary)
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Runs Immediately on PC
+                  </span>
                 </div>
                 <p className="text-neutral-400 text-[11px] leading-relaxed">
-                  Links a valid x86 <code>.text</code> entry point, a valid <code>.rdata</code> Import Address Table (<code>USER32.dll!MessageBoxA</code> &amp; <code>KERNEL32.dll!ExitProcess</code>), and a canonical <code>.rsrc</code> section containing <code>RT_GROUP_ICON</code> and 5 mipmap layers. Double-clicking the exported <code>.exe</code> on Windows 10/11 displays its native icon in Explorer and launches a native Win32 confirmation dialog.
+                  Links a valid x86 <code>.text</code> entry point, a valid <code>.rdata</code> Import Address Table (<code>USER32.dll!MessageBoxA</code> &amp; <code>KERNEL32.dll!ExitProcess</code>), and an embedded <code>.rsrc</code> resource directory containing <code>RT_GROUP_ICON</code> and 5 mipmap layers. Double-clicking this <code>.exe</code> on Windows displays its native icon in Explorer and opens a native Win32 window with zero dependencies.
                 </p>
               </div>
 
@@ -366,23 +378,89 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
           {/* TAB 2: NATIVE RUST (EGUI + FASTFRAME.DEV) WORKSPACE */}
           {activeTab === 'rust' && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
+              {/* GitHub Actions Cloud Compiler Banner */}
+              <div className="p-3.5 rounded-lg bg-linear-to-r from-[#0a84ff]/10 via-[#18181b] to-[#121214] border border-[#0a84ff]/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-semibold text-white">Automated GitHub Actions Release Pipeline</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-[#5eb0ff] bg-[#0a84ff]/10 px-2 py-0.5 rounded border border-[#0a84ff]/20">
+                    No Local Rust Install Needed
+                  </span>
+                </div>
+                <p className="text-neutral-300 text-[11px] leading-relaxed">
+                  You don't need to install <code>rustc</code>, <code>cargo</code>, or C++ build tools on your computer. This package includes a pre-configured <code>.github/workflows/release.yml</code>. When you upload or push this to GitHub, GitHub's cloud runners automatically compile the pure native <code>egui</code> + <code>fastframe</code> Windows <code>.exe</code> and macOS binaries, and attach them directly to your repository's <strong>Releases</strong> page!
+                </p>
+
+                {/* 3 Step Quickstart */}
+                <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
+                  <div className="p-2 rounded bg-black/30 border border-white/[0.06]">
+                    <div className="font-semibold text-neutral-200">1. Create Repo</div>
+                    <div className="text-neutral-400 text-[10px]">Create an empty repo on <span className="text-neutral-300">github.com/new</span></div>
+                  </div>
+                  <div className="p-2 rounded bg-black/30 border border-white/[0.06]">
+                    <div className="font-semibold text-neutral-200">2. Push / Upload</div>
+                    <div className="text-neutral-400 text-[10px]">Upload or <code>git push</code> this downloaded crate</div>
+                  </div>
+                  <div className="p-2 rounded bg-black/30 border border-white/[0.06]">
+                    <div className="font-semibold text-neutral-200">3. Get Your .EXE</div>
+                    <div className="text-neutral-400 text-[10px]">GitHub Actions compiles &amp; publishes the <code>.exe</code> Release</div>
+                  </div>
+                </div>
+
+                {/* Copyable Git snippet */}
+                <div className="pt-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-mono text-neutral-400">Quick Push Commands:</span>
+                    <button
+                      onClick={() => {
+                        const cmds = `git init\ngit add .\ngit commit -m "feat: initial native release"\ngit branch -M main\ngit remote add origin https://github.com/<YOUR_USER>/${exeMeta.fileName || 'app'}.git\ngit push -u origin main\ngit tag v1.0.0\ngit push origin v1.0.0`;
+                        navigator.clipboard.writeText(cmds);
+                        setCopiedGitCmds(true);
+                        setTimeout(() => setCopiedGitCmds(false), 2000);
+                      }}
+                      className="text-[10px] text-[#5eb0ff] hover:text-white flex items-center gap-1 font-mono transition-colors"
+                    >
+                      {copiedGitCmds ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                      <span>{copiedGitCmds ? 'Copied Git Commands' : 'Copy Git Commands'}</span>
+                    </button>
+                  </div>
+                  <pre className="p-2 rounded bg-black/40 border border-white/[0.06] text-[10px] font-mono text-neutral-300 overflow-x-auto select-all leading-tight">
+                    <code>{`git init && git add . && git commit -m "feat: native egui release"
+git remote add origin https://github.com/<YOUR_USER>/${exeMeta.fileName || 'app'}.git
+git push -u origin main && git tag v1.0.0 && git push origin v1.0.0`}</code>
+                  </pre>
+                </div>
+              </div>
+
+              {/* File switcher */}
               <div className="flex items-center justify-between">
                 <div className="text-xs text-neutral-300">
-                  <strong className="text-white">Native Rust Crate</strong> · <code>emilk/egui 0.36</code> + <code>crmne/fastframe v0.15.5</code>
+                  <strong className="text-white">Crate Source Inspector</strong> · <code>egui 0.36</code> + <code>fastframe v0.15.5</code>
                 </div>
-                <div className="flex items-center gap-1 bg-[#121214] p-0.5 rounded border border-white/[0.08]">
-                  {(['Cargo.toml', 'src/main.rs', 'src/renderer.rs', 'build.rs'] as const).map((file) => (
+                <div className="flex items-center gap-1 bg-[#121214] p-0.5 rounded border border-white/[0.08] overflow-x-auto">
+                  {(
+                    [
+                      'Cargo.toml',
+                      'src/main.rs',
+                      'src/renderer.rs',
+                      'build.rs',
+                      '.github/workflows/release.yml',
+                      'README.md',
+                    ] as const
+                  ).map((file) => (
                     <button
                       key={file}
                       onClick={() => setActiveRustFile(file)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-mono transition-colors ${
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors whitespace-nowrap ${
                         activeRustFile === file
                           ? 'bg-[#2c2c31] text-white font-semibold'
                           : 'text-neutral-400 hover:text-neutral-200'
                       }`}
                     >
-                      {file}
+                      {file.split('/').pop()}
                     </button>
                   ))}
                 </div>
@@ -390,14 +468,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
               {/* Code Viewer */}
               <div className="relative rounded-lg bg-[#111113] border border-white/[0.08] overflow-hidden">
-                <button
-                  onClick={() => handleCopyCode(currentRustCode)}
-                  className="absolute top-2 right-2 px-2 py-1 rounded bg-white/[0.08] hover:bg-white/[0.15] text-[10px] font-mono text-neutral-200 flex items-center gap-1 transition-colors"
-                >
-                  {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
-                </button>
-                <pre className="p-3.5 text-[11px] font-mono text-neutral-300 overflow-x-auto max-h-60 leading-relaxed select-text">
+                <div className="h-6 px-3 bg-[#161619] border-b border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-neutral-400">
+                  <span>{activeRustFile}</span>
+                  <button
+                    onClick={() => handleCopyCode(currentRustCode)}
+                    className="hover:text-white flex items-center gap-1 transition-colors"
+                  >
+                    {copied ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                    <span>{copied ? 'Copied' : 'Copy File'}</span>
+                  </button>
+                </div>
+                <pre className="p-3 text-[11px] font-mono text-neutral-300 overflow-x-auto max-h-52 leading-relaxed select-text">
                   <code>{currentRustCode}</code>
                 </pre>
               </div>
@@ -405,10 +486,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <button
                 onClick={handleExportRustCrate}
                 disabled={isExporting}
-                className="w-full py-2 rounded bg-[#0a84ff] hover:bg-[#1f8fff] disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
+                className="w-full py-2.5 rounded bg-[#0a84ff] hover:bg-[#1f8fff] disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
               >
                 <Code2 size={14} />
-                <span>Download Complete Rust (egui + fastframe) Project (.zip)</span>
+                <span>Download GitHub-Ready Rust Crate (.zip with release.yml)</span>
               </button>
             </div>
           )}
