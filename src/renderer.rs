@@ -1,6 +1,6 @@
 // Native Rust icon renderer and multi-format export pipeline.
 use image::{Rgba, RgbaImage, ImageFormat};
-use std::path::Path;
+use std::{path::Path, io::Cursor};
 use rayon::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
