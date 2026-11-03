@@ -338,6 +338,14 @@ mod tests {
     }
 
     #[test]
+    fn in_memory_svg_import_rasterizes_to_rgba() {
+        let svg=br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="4" fill="#336699"/></svg>"#;
+        let image=load_svg_data(svg).expect("sample SVG should render");
+        assert_eq!(image.dimensions(),(24,24));
+        assert_eq!(image.get_pixel(12,12)[3],255);
+    }
+
+    #[test]
     fn renders_requested_dimensions() {
         let image = render_icon(&IconSpec::default(), 128, None, "Layers");
         assert_eq!(image.dimensions(), (128, 128));
