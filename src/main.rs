@@ -191,6 +191,7 @@ impl eframe::App for IconForgeNativeApp {
                 slider(ui,"Corner radius",&mut self.spec.corner_radius,0.05..=0.48,&mut self.needs_rerender);
                 ui.separator();
                 ui.label(egui::RichText::new("BACKGROUND").strong());
+                egui::ComboBox::from_id_salt("background-style").selected_text(&self.spec.bg_style).show_ui(ui,|ui|{for style in ["linear-gradient","radial-gradient","acrylic-glass","dark-obsidian","titanium-metallic","carbon-fiber","solid"]{if ui.selectable_value(&mut self.spec.bg_style,style.into(),style).changed(){self.needs_rerender=true;}}});
                 color_row(ui,"Primary",&mut self.spec.bg_primary,&mut self.needs_rerender);
                 color_row(ui,"Secondary",&mut self.spec.bg_secondary,&mut self.needs_rerender);
                 color_row(ui,"Accent",&mut self.spec.bg_accent,&mut self.needs_rerender);
@@ -204,14 +205,23 @@ impl eframe::App for IconForgeNativeApp {
                     }
                 });
                 slider(ui,"Glyph scale",&mut self.spec.glyph_scale,0.15..=0.9,&mut self.needs_rerender);
+                slider(ui,"Glyph X offset",&mut self.spec.glyph_offset_x,-80.0..=80.0,&mut self.needs_rerender);
+                slider(ui,"Glyph Y offset",&mut self.spec.glyph_offset_y,-80.0..=80.0,&mut self.needs_rerender);
+                slider(ui,"Glyph rotation",&mut self.spec.glyph_rotation,-180.0..=180.0,&mut self.needs_rerender);
                 color_row(ui,"Glyph colour",&mut self.spec.glyph_color,&mut self.needs_rerender);
                 if self.imported.is_some() && ui.button("Remove imported image").clicked(){self.imported=None;self.imported_name=None;self.needs_rerender=true;}
                 ui.separator();
                 ui.label(egui::RichText::new("LIGHTING & SHADOWS").strong());
+                egui::ComboBox::from_id_salt("lighting-mode").selected_text(&self.spec.lighting).show_ui(ui,|ui|{for mode in ["macos-specular","glass-reflex","subtle","none"]{if ui.selectable_value(&mut self.spec.lighting,mode.into(),mode).changed(){self.needs_rerender=true;}}});
                 slider(ui,"Rim light",&mut self.spec.rim_light_opacity,0.0..=1.0,&mut self.needs_rerender);
                 slider(ui,"Shadow blur",&mut self.spec.shadow_blur,0.0..=64.0,&mut self.needs_rerender);
                 slider(ui,"Shadow offset",&mut self.spec.shadow_offset_y,0.0..=48.0,&mut self.needs_rerender);
                 slider(ui,"Shadow opacity",&mut self.spec.shadow_opacity,0.0..=1.0,&mut self.needs_rerender);
+                ui.separator();
+                ui.label(egui::RichText::new("BADGE / OVERLAY").strong());
+                egui::ComboBox::from_id_salt("badge-type").selected_text(&self.spec.badge).show_ui(ui,|ui|{for badge in ["none","beta","dev","pro","dot","windows","apple","linux","custom"]{if ui.selectable_value(&mut self.spec.badge,badge.into(),badge).changed(){self.needs_rerender=true;}}});
+                egui::ComboBox::from_id_salt("badge-position").selected_text(&self.spec.badge_position).show_ui(ui,|ui|{for pos in ["top-right","top-left","bottom-right","bottom-left"]{if ui.selectable_value(&mut self.spec.badge_position,pos.into(),pos).changed(){self.needs_rerender=true;}}});
+                color_row(ui,"Badge colour",&mut self.spec.badge_color,&mut self.needs_rerender);
                 ui.separator();
                 ui.label(egui::RichText::new("IMAGE GRADING").strong());
                 slider(ui,"Brightness",&mut self.spec.brightness,0.2..=2.0,&mut self.needs_rerender);
