@@ -43,6 +43,9 @@ pub struct IconForgeNativeApp {
     selected_ico_entry: usize,
     exe_metadata: pe_exe::ExeMetadata,
     backdrop_applied: bool,
+    show_export: bool,
+    export_tab: usize,
+    png_export_size: u32,
 }
 
 impl Default for IconForgeNativeApp {
@@ -67,6 +70,9 @@ impl Default for IconForgeNativeApp {
             ico_entries: Vec::new(),
             selected_ico_entry: 0,
             backdrop_applied: false,
+            show_export: false,
+            export_tab: 0,
+            png_export_size: 1024,
             exe_metadata: pe_exe::ExeMetadata { file_name: "iconforge_app".into(), app_name: "IconForgeApp".into(), company_name: "Native Studio".into(), version: "1.0.0".into(), description: "Native desktop icon application".into(), window_title: "IconForgeApp".into() },
         }
     }
@@ -265,12 +271,7 @@ impl eframe::App for IconForgeNativeApp {
                 ui.separator();
                 for res in RESOLUTIONS { if ui.selectable_label(self.selected_resolution==res,format!("{res}")).clicked(){self.selected_resolution=res;self.needs_rerender=true;} }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
-                    if ui.button("Rust crate").clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_rust_fastframe.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){match packaging::export_rust_project_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){Ok(())=>self.status_msg=format!("Rust project exported · {}",path.display()),Err(e)=>self.status_msg=format!("Rust project export failed: {e}")}}}
-                    if ui.button("EXE").clicked(){self.export_exe();}
-                    if ui.button("ZIP pack").clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_developer_pack.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){match packaging::export_developer_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){Ok(())=>self.status_msg=format!("Developer pack saved · {}",path.display()),Err(e)=>self.status_msg=format!("ZIP export failed: {e}")}}}
-                    if ui.button("Export ▾").clicked(){self.export("ICO");}
-                    
-                    if ui.button("PNG").clicked(){self.export("PNG");}
+                    if ui.button("Export").clicked(){self.show_export=true;}
                     if ui.button(if self.dark{"☼"}else{"☾"}).clicked(){self.dark=!self.dark;self.apply_theme(&ctx);}
                 });
             });
@@ -391,6 +392,72 @@ impl eframe::App for IconForgeNativeApp {
                 });
             });
         });
+
+        if self.show_export {
+            egui::Window::new("Export Studio")
+                .open(&mut self.show_export)
+                .collapsible(false)
+                .resizable(false)
+                .default_width(560.0)
+                .show(&ctx,|ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for (index,label) in ["PNG","Windows ICO","Windows EXE","Developer ZIP","Rust Project"].iter().enumerate() {
+                            ui.selectable_value(&mut self.export_tab,index,*label);
+                        }
+                    });
+                    ui.separator();
+                    match self.export_tab {
+                        0 => {
+                            ui.label("Export a transparent PNG at a chosen resolution.");
+                            egui::ComboBox::from_id_salt("png-export-size")
+                                .selected_text(format!("{} × {}",self.png_export_size,self.png_export_size))
+                                .show_ui(ui,|ui|for size in RESOLUTIONS {ui.selectable_value(&mut self.png_export_size,size,format!("{size} × {size}"));});
+                            if ui.button("Save PNG…").clicked(){self.export("PNG");}
+                        },
+                        1 => {
+                            ui.label("Create a multi-resolution Windows .ico containing all standard icon sizes.");
+                            ui.label("Included: 16, 24, 32, 48, 64, 128 and 256 pixels.");
+                            if ui.button("Save Windows ICO…").clicked(){self.export("ICO");}
+                        },
+                        2 => {
+                            ui.label("Generate a Windows PE executable with embedded icon resources and editable version metadata.");
+                            egui::Grid::new("exe-export-metadata").num_columns(2).show(ui,|ui|{
+                                ui.label("File name");ui.text_edit_singleline(&mut self.exe_metadata.file_name);ui.end_row();
+                                ui.label("Application");ui.text_edit_singleline(&mut self.exe_metadata.app_name);ui.end_row();
+                                ui.label("Publisher");ui.text_edit_singleline(&mut self.exe_metadata.company_name);ui.end_row();
+                                ui.label("Version");ui.text_edit_singleline(&mut self.exe_metadata.version);ui.end_row();
+                                ui.label("Description");ui.text_edit_singleline(&mut self.exe_metadata.description);ui.end_row();
+                                ui.label("Window title");ui.text_edit_singleline(&mut self.exe_metadata.window_title);ui.end_row();
+                            });
+                            if ui.button("Build Windows EXE…").clicked(){self.export_exe();}
+                        },
+                        3 => {
+                            ui.label("Package PNG mipmaps, ICO, generated EXE, manifest and usage notes into one ZIP.");
+                            if ui.button("Create Developer ZIP…").clicked(){
+                                if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_developer_pack.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){
+                                    match packaging::export_developer_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){
+                                        Ok(())=>self.status_msg=format!("Developer pack saved · {}",path.display()),
+                                        Err(e)=>self.status_msg=format!("ZIP export failed: {e}")
+                                    }
+                                }
+                            }
+                        },
+                        _ => {
+                            ui.label("Export a standalone Rust / egui / Fastframe project with your current icon as its starter asset.");
+                            if ui.button("Create Rust Project ZIP…").clicked(){
+                                if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_rust_project.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){
+                                    match packaging::export_rust_project_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){
+                                        Ok(())=>self.status_msg=format!("Rust project exported · {}",path.display()),
+                                        Err(e)=>self.status_msg=format!("Rust project export failed: {e}")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    ui.separator();
+                    ui.label(egui::RichText::new(&self.status_msg).weak().size(10.0));
+                });
+        }
 
         if self.show_mockup{egui::Window::new("Context Mockup Simulator").open(&mut self.show_mockup).default_width(620.0).show(&ctx,|ui|{
             ui.horizontal(|ui|{for(i,label)in ["Windows 11 Desktop","Windows 11 Taskbar","Windows 11 Start","File Explorer"].iter().enumerate(){if ui.selectable_label(self.mockup_env==i,*label).clicked(){self.mockup_env=i;}}});ui.separator();
