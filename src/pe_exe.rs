@@ -132,3 +132,22 @@ fn patch_resource_rvas(b:&mut [u8],rva:u32){
   }
  }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{Rgba, RgbaImage};
+
+    #[test]
+    fn generated_executable_has_dos_and_pe_signatures() {
+        let mut image=RgbaImage::new(16,16);
+        for pixel in image.pixels_mut(){*pixel=Rgba([30,120,220,255]);}
+        let icon=png_icon(16,&image).unwrap();
+        let meta=ExeMetadata{file_name:"test".into(),app_name:"Test App".into(),company_name:"Test Studio".into(),version:"1.0.0".into(),description:"Test".into(),window_title:"Test".into()};
+        let exe=generate_windows_ex(&[icon],&meta).unwrap();
+        assert_eq!(&exe[0..2],b"MZ");
+        assert_eq!(&exe[0x80..0x84],b"PE\0\0");
+        assert!(exe.len()>1024);
+    }
+}
