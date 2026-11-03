@@ -214,12 +214,13 @@ fn rendering_style(style: &mut egui::Style, dark: bool) {
 }
 
 impl eframe::App for IconForgeNativeApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
         let dropped=ctx.input(|i|i.raw.dropped_files.clone());
-        if let Some(path)=dropped.into_iter().find_map(|file|file.path){self.load_image_path(&path);}
+        if let Some(path)=dropped.into_iter().find_map(|file|file.path().map(std::path::Path::to_path_buf)){self.load_image_path(&path);}
         if self.needs_rerender || self.texture.is_none() { self.rebuild_preview_texture(ctx); }
 
-        egui::TopBottomPanel::top("toolbar").exact_height(44.0).show(ctx, |ui| {
+        egui::Panel::top("toolbar").exact_size(44.0).show(ui, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.label(egui::RichText::new("◈  IconForge Pro").font(Weight::SemiBold.font_id(15.0)));
                 ui.separator();
@@ -243,7 +244,7 @@ impl eframe::App for IconForgeNativeApp {
             });
         });
 
-        egui::SidePanel::left("inspector").exact_width(292.0).resizable(false).show(ctx,|ui|{
+        egui::Panel::left("inspector").exact_size(292.0).resizable(false).show(ui,|ui|{
             egui::ScrollArea::vertical().show(ui,|ui|{
                 ui.add_space(8.0);
                 ui.label(egui::RichText::new("ICON STUDIO").size(10.0).strong().weak());
@@ -338,7 +339,7 @@ impl eframe::App for IconForgeNativeApp {
             });
         });
 
-        egui::SidePanel::right("mipmaps").exact_width(174.0).resizable(false).show(ctx,|ui|{
+        egui::Panel::right("mipmaps").exact_size(174.0).resizable(false).show(ui,|ui|{
             ui.label(egui::RichText::new("MIPMAP PREVIEW").strong().size(11.0));
             ui.separator();
             egui::ScrollArea::vertical().show(ui,|ui|{
@@ -355,7 +356,7 @@ impl eframe::App for IconForgeNativeApp {
             });
         });
 
-        egui::TopBottomPanel::bottom("status").exact_height(26.0).show(ctx,|ui|{
+        egui::Panel::bottom("status").exact_size(26.0).show(ui,|ui|{
             ui.horizontal_centered(|ui|{
                 ui.label(egui::RichText::new(&self.status_msg).size(10.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
@@ -365,14 +366,14 @@ impl eframe::App for IconForgeNativeApp {
             });
         });
 
-        if self.show_mockup{egui::Window::new("Context Mockup Simulator").open(&mut self.show_mockup).default_width(620.0).show(ctx,|ui|{
+        if self.show_mockup{egui::Window::new("Context Mockup Simulator").open(&mut self.show_mockup).default_width(620.0).show(&ctx,|ui|{
             ui.horizontal(|ui|{for(i,label)in ["macOS 27 Dock","Windows 11 Taskbar","Windows Desktop","Browser Tab"].iter().enumerate(){if ui.selectable_label(self.mockup_env==i,*label).clicked(){self.mockup_env=i;}}});ui.separator();
             let(rect,_)=ui.allocate_exact_size(egui::vec2(560.0,300.0),egui::Sense::hover());let painter=ui.painter();painter.rect_filled(rect,12.0,match self.mockup_env{0=>egui::Color32::from_rgb(35,42,55),1=>egui::Color32::from_rgb(24,35,53),2=>egui::Color32::from_rgb(18,32,55),_=>egui::Color32::from_rgb(238,240,244)});
             if let Some(tex)=&self.texture{let side=match self.mockup_env{0=>74.0,1=>48.0,2=>92.0,_=>24.0};let count=if self.mockup_env==0{6}else if self.mockup_env==1{8}else{1};let start=rect.center().x-(count as f32*side*1.25)*0.5;for i in 0..count{let x=start+i as f32*side*1.25;let y=if self.mockup_env==0||self.mockup_env==1{rect.bottom()-side-15.0}else{rect.center().y-side*0.5};let r=egui::Rect::from_min_size(egui::pos2(x,y),egui::vec2(side,side));painter.image(tex.id(),r,egui::Rect::from_min_max(egui::pos2(0.0,0.0),egui::pos2(1.0,1.0)),egui::Color32::WHITE);}}
             ui.label(match self.mockup_env{0=>"macOS Dock scale and silhouette preview",1=>"Windows 11 centered taskbar preview",2=>"Windows desktop icon preview",_=>"Browser tab / favicon preview"});
         });}
 
-        egui::CentralPanel::default().show(ctx,|ui|{
+        egui::CentralPanel::default().show(ui,|ui|{
             ui.vertical_centered(|ui|{
                 ui.add_space(12.0);
                 ui.label(egui::RichText::new("CANVAS WORKSPACE").weak().size(10.0));
