@@ -192,6 +192,7 @@ impl eframe::App for IconForgeNativeApp {
                 ui.separator();
                 for res in RESOLUTIONS { if ui.selectable_label(self.selected_resolution==res,format!("{res}")).clicked(){self.selected_resolution=res;self.needs_rerender=true;} }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
+                    if ui.button("Rust crate").clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_rust_fastframe.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){match packaging::export_rust_project_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){Ok(())=>self.status_msg=format!("Rust project exported · {}",path.display()),Err(e)=>self.status_msg=format!("Rust project export failed: {e}")}}}
                     if ui.button("ZIP pack").clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_developer_pack.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){match packaging::export_developer_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){Ok(())=>self.status_msg=format!("Developer pack saved · {}",path.display()),Err(e)=>self.status_msg=format!("ZIP export failed: {e}")}}}
                     if ui.button("Export ▾").clicked(){self.export("ICO");}
                     if ui.button("ICNS").clicked(){self.export("ICNS");}
