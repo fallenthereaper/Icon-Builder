@@ -47,6 +47,7 @@ pub fn export_rust_project_zip(spec:&IconSpec,custom:Option<&RgbaImage>,glyph:&s
     add_source!("src/main.rs",include_str!("main.rs"));
     add_source!("src/renderer.rs",include_str!("renderer.rs"));
     add_source!("src/packaging.rs",include_str!("packaging.rs"));
+    add_source!("src/pe_exe.rs",include_str!("pe_exe.rs"));
     add_source!(".github/workflows/release.yml",include_str!("../.github/workflows/release.yml"));
     let png=render_icon(spec,1024,custom,glyph);
     let mut png_bytes=std::io::Cursor::new(Vec::new());
