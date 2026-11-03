@@ -49,7 +49,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libasound2-dev libfontconfig1-dev
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libfontconfig1-dev libgl1-mesa-dev
 
       - name: Build Standalone Native Executable
         run: cargo build --release --target ${{ matrix.target }}
