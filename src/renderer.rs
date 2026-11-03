@@ -263,3 +263,34 @@ pub fn load_svg_file(path:&Path)->Result<RgbaImage,Box<dyn std::error::Error>>{
     resvg::render(&tree,resvg::tiny_skia::Transform::from_scale(scale,scale),&mut pixmap.as_mut());
     RgbaImage::from_raw(width,height,pixmap.take()).ok_or_else(||"SVG renderer returned an invalid pixel buffer".into())
 }
+
+
+#[derive(Clone)]
+pub struct IcnsEntry {
+    pub tag:String,
+    pub width:u32,
+    pub height:u32,
+    pub byte_length:usize,
+    pub image:RgbaImage,
+}
+
+pub fn parse_icns_file(path:&Path)->Result<Vec<IcnsEntry>,Box<dyn std::error::Error>>{
+    let bytes=std::fs::read(path)?;
+    if bytes.len()<8||&bytes[0..4]!=b"icns"{return Err("Invalid ICNS header".into());}
+    let declared=u32::from_be_bytes(bytes[4..8].try_into()?) as usize;
+    if declared>bytes.len()||declared<8{return Err("Invalid ICNS container length".into());}
+    let mut entries=Vec::new();let mut offset=8usize;
+    while offset+8<=declared{
+        let tag=String::from_utf8_lossy(&bytes[offset..offset+4]).to_string();
+        let length=u32::from_be_bytes(bytes[offset+4..offset+8].try_into()?) as usize;
+        if length<8||offset.checked_add(length).is_none_or(|end|end>declared){return Err("Malformed ICNS chunk length".into());}
+        let payload=&bytes[offset+8..offset+length];
+        if let Ok(decoded)=image::load_from_memory(payload){
+            let rgba=decoded.to_rgba8();let(width,height)=rgba.dimensions();
+            entries.push(IcnsEntry{tag,width,height,byte_length:payload.len(),image:rgba});
+        }
+        offset+=length;
+    }
+    entries.sort_by(|a,b|b.width.cmp(&a.width).then(a.tag.cmp(&b.tag)));
+    Ok(entries)
+}
