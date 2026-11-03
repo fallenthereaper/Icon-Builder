@@ -13,13 +13,14 @@ pub struct IconSpec {
     pub name:String, pub shape:Shape, pub superellipse_n:f32, pub tile_scale:f32, pub corner_radius:f32,
     pub bg_primary:[u8;3],pub bg_secondary:[u8;3],pub bg_accent:[u8;3],pub gradient_angle_deg:f32,
     pub rim_light_opacity:f32,pub shadow_blur:f32,pub shadow_offset_y:f32,pub shadow_opacity:f32,
-    pub glyph_scale:f32,pub glyph_color:[u8;3],pub brightness:f32,pub contrast:f32,pub saturation:f32,pub hue_rotate:f32,
+    pub glyph_scale:f32,pub glyph_color:[u8;3],pub glyph_offset_x:f32,pub glyph_offset_y:f32,pub glyph_rotation:f32,pub brightness:f32,pub contrast:f32,pub saturation:f32,pub hue_rotate:f32,
+    pub bg_style:String,pub lighting:String,pub badge:String,pub badge_color:[u8;3],pub badge_position:String,
 }
 impl Default for IconSpec {
     fn default()->Self{Self{name:"IconForgeApp".into(),shape:Shape::Squircle,superellipse_n:4.5,tile_scale:0.805,corner_radius:0.224,
         bg_primary:[30,32,41],bg_secondary:[19,20,26],bg_accent:[11,12,16],gradient_angle_deg:145.0,
         rim_light_opacity:0.38,shadow_blur:32.0,shadow_offset_y:22.0,shadow_opacity:0.28,glyph_scale:0.62,glyph_color:[56,189,248],
-        brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0}}
+        glyph_offset_x:0.0,glyph_offset_y:0.0,glyph_rotation:0.0,brightness:1.0,contrast:1.0,saturation:1.0,hue_rotate:0.0,bg_style:"linear-gradient".into(),lighting:"macos-specular".into(),badge:"none".into(),badge_color:[245,158,11],badge_position:"top-right".into()}}
 }
 
 fn mix(a:f32,b:f32,t:f32)->f32{a+(b-a)*t.clamp(0.0,1.0)}
@@ -60,15 +61,18 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
         let inside_tile=inside(spec.shape,nx*radius,ny*radius,spec.superellipse_n,radius);
         let idx=if !inside_tile{Rgba([0,0,0,0])}else{
             let t=(((nx*angle.cos()+ny*angle.sin())/max_t)+1.0)*0.5;
+            let radial=(nx*nx+ny*ny).sqrt();
+            let t=match spec.bg_style.as_str(){"radial-gradient"=>1.0-radial.clamp(0.0,1.0),"solid"=>0.0,"dark-obsidian"=>t*0.65,"titanium-metallic"=>((t*3.0).sin()*0.5+0.5),"acrylic-glass"=>t*0.72+radial*0.28,"carbon-fiber"=>t*0.55+if ((nx*radius/5.0).floor() as i32+(ny*radius/5.0).floor() as i32)%2==0{0.10}else{0.0},_=>t};
             let mut rgb=[0u8;3];
             for c in 0..3{let mid=mix(spec.bg_primary[c] as f32,spec.bg_secondary[c] as f32,t);rgb[c]=(mid*spec.brightness).clamp(0.0,255.0) as u8;}
             let edge=(1.0-(nx.abs().max(ny.abs()))).clamp(0.0,1.0);
             for c in 0..3{rgb[c]=(rgb[c] as f32+spec.bg_accent[c] as f32*(1.0-edge)*0.12).clamp(0.0,255.0) as u8;}
             let mut pixel=Rgba([rgb[0],rgb[1],rgb[2],255]);
             if let Some(src)=custom{let (sw,sh)=src.dimensions();let u=((nx/spec.glyph_scale+1.0)*0.5).clamp(0.0,1.0);let v=((ny/spec.glyph_scale+1.0)*0.5).clamp(0.0,1.0);let sx=(u*(sw.saturating_sub(1)) as f32) as u32;let sy=(v*(sh.saturating_sub(1)) as f32) as u32;let p=src.get_pixel(sx,sy);if p[3]>0{pixel=*p;}}
-            else{let cov=glyph_coverage(glyph,nx,ny,spec.glyph_scale);if cov>0.0{for c in 0..3{pixel[c]=mix(pixel[c] as f32,spec.glyph_color[c] as f32,cov) as u8;}}}
+            else{let rot=spec.glyph_rotation.to_radians();let gx=nx-spec.glyph_offset_x/(size as f32);let gy=ny-spec.glyph_offset_y/(size as f32);let rx=gx*rot.cos()-gy*rot.sin();let ry=gx*rot.sin()+gy*rot.cos();let cov=glyph_coverage(glyph,rx,ry,spec.glyph_scale);if cov>0.0{for c in 0..3{pixel[c]=mix(pixel[c] as f32,spec.glyph_color[c] as f32,cov) as u8;}}}
             let rim=((1.0-(nx*nx+ny*ny).sqrt())*7.0).clamp(0.0,1.0)*spec.rim_light_opacity;
-            for c in 0..3{pixel[c]=(pixel[c] as f32+rim*34.0).clamp(0.0,255.0) as u8;}
+            let glass=if spec.lighting=="glass-reflex"{((nx+ny+0.65).abs()).recip().min(1.0)*0.18}else{0.0};
+            for c in 0..3{pixel[c]=(pixel[c] as f32+rim*34.0+glass*220.0).clamp(0.0,255.0) as u8;}
             pixel
         };
         out.put_pixel(x,y,idx);
@@ -87,7 +91,7 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
     for p in out.pixels_mut(){if p[3]==0{continue;}for c in 0..3{p[c]=(((p[c] as f32/255.0-0.5)*spec.contrast+0.5)*255.0).clamp(0.0,255.0) as u8;}}
     out
 }
-fn png_bytes(img:&RgbaImage)->Result<Vec<u8>,Box<dyn std::error::Error>>{let mut bytes=Cursor::new(Vec::new());image::DynamicImage::ImageRgba8(img.clone()).write_to(&mut bytes,ImageFormat::Png)?;Ok(bytes.into_inner())}
+fn rgb_to_hsv(c:[f32;3])->(f32,f32,f32){let max=c[0].max(c[1]).max(c[2]);let min=c[0].min(c[1]).min(c[2]);let d=max-min;let h=if d==0.0{0.0}else if max==c[0]{((c[1]-c[2])/d).rem_euclid(6.0)/6.0}else if max==c[1]{((c[2]-c[0])/d+2.0)/6.0}else{((c[0]-c[1])/d+4.0)/6.0};(h,if max==0.0{0.0}else{d/max},max)}\nfn hsv_to_rgb(h:f32,s:f32,v:f32)->[f32;3]{let k=|n:f32|(n+h*6.0).rem_euclid(6.0);let f=|n:f32|v-v*s*(0.0f32.max((k(n)).min(4.0-k(n)).min(1.0)));[f(5.0),f(3.0),f(1.0)]}\nfn png_bytes(img:&RgbaImage)->Result<Vec<u8>,Box<dyn std::error::Error>>{let mut bytes=Cursor::new(Vec::new());image::DynamicImage::ImageRgba8(img.clone()).write_to(&mut bytes,ImageFormat::Png)?;Ok(bytes.into_inner())}
 pub fn export_png(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str)->Result<(),Box<dyn std::error::Error>>{render_icon(spec,1024,custom,glyph).save_with_format(path,ImageFormat::Png)?;Ok(())}
 pub fn export_ico(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str)->Result<(),Box<dyn std::error::Error>>{
     let mut dir=ico::IconDir::new(ico::ResourceType::Icon);
