@@ -23,7 +23,7 @@ fastframe-theme = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" 
 fastframe-icons = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" }
 
 # Native Image & Binary Encoding Pipeline
-image = { version = "0.25", default-features = false, features = ["png", "ico", "bmp", "jpeg", "webp"] }
+image = { version = "0.25", default-features = false, features = ["png", "bmp", "jpeg", "webp"] }
 ico = "0.4"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 icns = "0.3"
