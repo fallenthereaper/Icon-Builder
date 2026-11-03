@@ -101,12 +101,45 @@ impl IconForgeNativeApp {
     fn apply_preset(&mut self, name: &str) {
         self.active_preset = name.into();
         match name {
-            "macOS Tahoe Glass" => { self.spec.shape=Shape::Squircle; self.spec.tile_scale=0.805; self.spec.bg_style="mesh-aurora".into(); self.spec.bg_primary=[59,130,246]; self.spec.bg_secondary=[139,92,246]; self.spec.bg_accent=[236,72,153]; self.spec.lighting="glass-reflex".into(); self.spec.rim_light_opacity=0.55; self.spec.glyph_color=[255,255,255]; self.spec.glyph_scale=0.65; },
-            "WinUI 3 Fluent" => { self.spec.shape = Shape::WinUi; self.spec.bg_style="acrylic-glass".into(); self.spec.lighting="chamfer-edge".into(); self.spec.shadow_mode="winui-diffuse".into(); self.spec.tile_scale = 0.84; self.spec.bg_primary=[36,92,150]; self.spec.bg_secondary=[18,44,78]; self.spec.glyph_color=[245,248,255]; self.spec.glyph_scale=0.56; }
-            "iOS 18 Full-Bleed" => { self.spec.shape = Shape::IosSquircle; self.spec.tile_scale=0.96; self.spec.bg_primary=[115,70,210]; self.spec.bg_secondary=[35,24,90]; self.spec.glyph_color=[255,255,255]; }
-            "Cyber Slate" => { self.spec.shape=Shape::Squircle; self.spec.tile_scale=0.805; self.spec.bg_primary=[20,38,55]; self.spec.bg_secondary=[8,15,26]; self.spec.glyph_color=[49,220,190]; }
-            "Titanium Matte" => { self.spec.shape=Shape::Squircle; self.spec.bg_primary=[105,112,122]; self.spec.bg_secondary=[32,36,44]; self.spec.glyph_color=[235,240,246]; }
-            "Retro 98" => { self.spec.shape=Shape::WinUi; self.spec.tile_scale=0.88; self.spec.bg_primary=[0,120,215]; self.spec.bg_secondary=[0,45,110]; self.spec.glyph_color=[255,255,255]; }
+            "macOS Tahoe Glass" => {
+                self.spec.shape=Shape::Squircle; self.spec.tile_scale=0.805;
+                self.spec.bg_style="mesh-aurora".into();
+                self.spec.bg_primary=[59,130,246]; self.spec.bg_secondary=[139,92,246]; self.spec.bg_accent=[236,72,153];
+                self.spec.lighting="glass-reflex".into(); self.spec.rim_light_opacity=0.55;
+                self.spec.glyph_color=[255,255,255]; self.spec.glyph_scale=0.65;
+            },
+            "WinUI 3 Fluent" => {
+                self.spec.shape=Shape::WinUi; self.spec.bg_style="acrylic-glass".into();
+                self.spec.lighting="chamfer-edge".into(); self.spec.shadow_mode="winui-diffuse".into();
+                self.spec.tile_scale=0.84; self.spec.bg_primary=[36,92,150]; self.spec.bg_secondary=[18,44,78];
+                self.spec.glyph_color=[245,248,255]; self.spec.glyph_scale=0.56;
+            },
+            "iOS 18 Full-Bleed" => {
+                self.spec.shape=Shape::IosSquircle; self.spec.tile_scale=0.96;
+                self.spec.bg_primary=[115,70,210]; self.spec.bg_secondary=[35,24,90]; self.spec.glyph_color=[255,255,255];
+                self.spec.shadow_mode="none".into();
+            },
+            "Cyber Slate" => {
+                self.spec.shape=Shape::Squircle; self.spec.tile_scale=0.82; self.spec.bg_style="dark-obsidian".into();
+                self.spec.bg_primary=[20,38,55]; self.spec.bg_secondary=[8,15,26]; self.spec.glyph_color=[49,220,190];
+                self.spec.rim_light_opacity=0.6; self.spec.shadow_mode="elevated-3d".into();
+            },
+            "Titanium Matte" => {
+                self.spec.shape=Shape::Squircle; self.spec.bg_style="titanium-metallic".into();
+                self.spec.bg_primary=[105,112,122]; self.spec.bg_secondary=[32,36,44]; self.spec.glyph_color=[235,240,246];
+                self.spec.lighting="chamfer-edge".into();
+            },
+            "Material You Adaptive" => {
+                self.spec.shape=Shape::Circle; self.spec.tile_scale=0.85; self.spec.bg_primary=[2,132,199];
+                self.spec.bg_secondary=[3,105,161]; self.spec.bg_accent=[7,89,133]; self.spec.glyph_color=[255,255,255];
+                self.spec.lighting="subtle".into(); self.spec.shadow_mode="winui-diffuse".into();
+            },
+            "Retro 98" => {
+                self.spec.shape=Shape::WinUi; self.spec.tile_scale=0.88; self.spec.corner_radius=0.08;
+                self.spec.bg_style="solid".into(); self.spec.bg_primary=[192,192,192]; self.spec.bg_secondary=[192,192,192];
+                self.spec.glyph_color=[0,0,128]; self.spec.lighting="chamfer-edge".into(); self.spec.rim_light_opacity=0.9;
+                self.spec.shadow_mode="flat".into();
+            },
             _ => { self.spec=IconSpec::default(); }
         }
         self.needs_rerender=true;
