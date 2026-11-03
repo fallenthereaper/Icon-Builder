@@ -24,13 +24,13 @@ impl Default for IconSpec {
 }
 
 fn mix(a:f32,b:f32,t:f32)->f32{a+(b-a)*t.clamp(0.0,1.0)}
-fn inside(shape:Shape,x:f32,y:f32,n:f32,r:f32)->bool{
+fn inside(shape:Shape,x:f32,y:f32,n:f32,r:f32,corner:f32)->bool{
     match shape{
         Shape::Circle=>x*x+y*y<=r*r,
         Shape::Hexagon=>y.abs()<=r*0.866 && x.abs()<=r-(y.abs()/0.866)*0.5,
         Shape::Shield=>y<r*0.55 && x.abs()<r*0.88 || y>=r*0.55 && y<=r && x.abs()<(r*(1.0-(y-r*0.55)/(r*0.9))*0.88),
         Shape::Square=>x.abs()<=r&&y.abs()<=r,
-        Shape::WinUi=>{let cr=r*0.32;let qx=(x.abs()-(r-cr)).max(0.0);let qy=(y.abs()-(r-cr)).max(0.0);qx*qx+qy*qy<=cr*cr},
+        Shape::WinUi=>{let cr=r*corner.clamp(0.02,0.49);let qx=(x.abs()-(r-cr)).max(0.0);let qy=(y.abs()-(r-cr)).max(0.0);qx*qx+qy*qy<=cr*cr},
         _=>(x.abs()/r).powf(n)+(y.abs()/r).powf(n)<=1.0
     }
 }
@@ -64,7 +64,7 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
     let max_t=(angle.cos().abs()+angle.sin().abs()).max(0.001);
     for y in 0..size{for x in 0..size{
         let nx=(x as f32+0.5-half)/radius;let ny=(y as f32+0.5-half)/radius;
-        let inside_tile=inside(spec.shape,nx*radius,ny*radius,spec.superellipse_n,radius);
+        let inside_tile=inside(spec.shape,nx*radius,ny*radius,spec.superellipse_n,radius,spec.corner_radius);
         let idx=if !inside_tile{Rgba([0,0,0,0])}else{
             let t=(((nx*angle.cos()+ny*angle.sin())/max_t)+1.0)*0.5;
             let radial=(nx*nx+ny*ny).sqrt();
@@ -155,4 +155,38 @@ pub fn export_icns(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&st
     let total=8+chunks.iter().map(|(_,_,b)|8+b.len()).sum::<usize>();let mut out=Vec::with_capacity(total);out.extend_from_slice(b"icns");out.extend_from_slice(&(total as u32).to_be_bytes());
     for (_,tag,data) in chunks{out.extend_from_slice(&tag);out.extend_from_slice(&((data.len()+8) as u32).to_be_bytes());out.extend_from_slice(&data);}
     std::fs::write(path,out)?;Ok(())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn renders_requested_dimensions() {
+        let image = render_icon(&IconSpec::default(), 128, None, "Layers");
+        assert_eq!(image.dimensions(), (128, 128));
+    }
+
+    #[test]
+    fn transparent_canvas_corners_remain_transparent() {
+        let image = render_icon(&IconSpec::default(), 128, None, "Layers");
+        assert_eq!(image.get_pixel(0, 0)[3], 0);
+        assert_eq!(image.get_pixel(127, 127)[3], 0);
+    }
+
+    #[test]
+    fn centre_of_icon_is_visible() {
+        let image = render_icon(&IconSpec::default(), 128, None, "Layers");
+        assert_eq!(image.get_pixel(64, 64)[3], 255);
+    }
+
+    #[test]
+    fn hue_and_saturation_are_applied_without_changing_alpha() {
+        let mut spec = IconSpec::default();
+        spec.hue_rotate = 120.0;
+        spec.saturation = 1.8;
+        let image = render_icon(&spec, 64, None, "Terminal");
+        assert_eq!(image.get_pixel(32, 32)[3], 255);
+    }
 }
