@@ -1,11 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod renderer;
+mod packaging;
 
 use eframe::egui;
 use fastframe_fonts::{FontSetup, Weight};
 use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns};
-use std::path::PathBuf;
+
 
 const RESOLUTIONS: [u32; 8] = [1024, 512, 256, 128, 64, 48, 32, 16];
 
@@ -23,6 +24,8 @@ pub struct IconForgeNativeApp {
     imported: Option<image::RgbaImage>,
     imported_name: Option<String>,
     glyph: String,
+    show_mockup: bool,
+    mockup_env: usize,
 }
 
 impl Default for IconForgeNativeApp {
@@ -41,6 +44,8 @@ impl Default for IconForgeNativeApp {
             imported: None,
             imported_name: None,
             glyph: "Layers".into(),
+            show_mockup: false,
+            mockup_env: 0,
         }
     }
 }
@@ -147,12 +152,13 @@ impl eframe::App for IconForgeNativeApp {
                 ui.label(egui::RichText::new(&self.active_preset).weak().size(11.0));
                 ui.separator();
                 if ui.button("＋ Import").clicked(){self.import_image();}
-                if ui.button("Mockup").clicked(){self.status_msg="OS mockup simulator is being ported next.".into();}
+                if ui.button("Mockup").clicked(){self.show_mockup=true;}
                 ui.checkbox(&mut self.show_apple_grid,"Apple HIG");
                 ui.checkbox(&mut self.show_pixel_grid,"Pixel grid");
                 ui.separator();
                 for res in RESOLUTIONS { if ui.selectable_label(self.selected_resolution==res,format!("{res}")).clicked(){self.selected_resolution=res;self.needs_rerender=true;} }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
+                    if ui.button("ZIP pack").clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_developer_pack.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){match packaging::export_developer_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){Ok(())=>self.status_msg=format!("Developer pack saved · {}",path.display()),Err(e)=>self.status_msg=format!("ZIP export failed: {e}")}}}
                     if ui.button("Export ▾").clicked(){self.export("ICO");}
                     if ui.button("ICNS").clicked(){self.export("ICNS");}
                     if ui.button("PNG").clicked(){self.export("PNG");}
@@ -189,6 +195,7 @@ impl eframe::App for IconForgeNativeApp {
                 color_row(ui,"Secondary",&mut self.spec.bg_secondary,&mut self.needs_rerender);
                 color_row(ui,"Accent",&mut self.spec.bg_accent,&mut self.needs_rerender);
                 slider(ui,"Gradient angle",&mut self.spec.gradient_angle_deg,0.0..=360.0,&mut self.needs_rerender);
+                if let Some(source)=&self.imported{if ui.button("Auto-match palette from source").clicked(){let(a,b,c,d)=packaging::extract_palette(source);self.spec.bg_primary=a;self.spec.bg_secondary=b;self.spec.bg_accent=c;self.spec.glyph_color=d;self.needs_rerender=true;}}
                 ui.separator();
                 ui.label(egui::RichText::new("GLYPH").strong());
                 egui::ComboBox::from_id_salt("glyph").selected_text(&self.glyph).show_ui(ui,|ui|{
@@ -243,6 +250,13 @@ impl eframe::App for IconForgeNativeApp {
                 });
             });
         });
+
+        if self.show_mockup{egui::Window::new("Context Mockup Simulator").open(&mut self.show_mockup).default_width(620.0).show(ctx,|ui|{
+            ui.horizontal(|ui|{for(i,label)in ["macOS 27 Dock","Windows 11 Taskbar","Windows Desktop","Browser Tab"].iter().enumerate(){if ui.selectable_label(self.mockup_env==i,*label).clicked(){self.mockup_env=i;}}});ui.separator();
+            let(rect,_)=ui.allocate_exact_size(egui::vec2(560.0,300.0),egui::Sense::hover());let painter=ui.painter();painter.rect_filled(rect,12.0,match self.mockup_env{0=>egui::Color32::from_rgb(35,42,55),1=>egui::Color32::from_rgb(24,35,53),2=>egui::Color32::from_rgb(18,32,55),_=>egui::Color32::from_rgb(238,240,244)});
+            if let Some(tex)=&self.texture{let side=match self.mockup_env{0=>74.0,1=>48.0,2=>92.0,_=>24.0};let count=if self.mockup_env==0{6}else if self.mockup_env==1{8}else{1};let start=rect.center().x-(count as f32*side*1.25)*0.5;for i in 0..count{let x=start+i as f32*side*1.25;let y=if self.mockup_env==0||self.mockup_env==1{rect.bottom()-side-15.0}else{rect.center().y-side*0.5};let r=egui::Rect::from_min_size(egui::pos2(x,y),egui::vec2(side,side));painter.image(tex.id(),r,egui::Rect::from_min_max(egui::pos2(0.0,0.0),egui::pos2(1.0,1.0)),egui::Color32::WHITE);}}
+            ui.label(match self.mockup_env{0=>"macOS Dock scale and silhouette preview",1=>"Windows 11 centered taskbar preview",2=>"Windows desktop icon preview",_=>"Browser tab / favicon preview"});
+        });}
 
         egui::CentralPanel::default().show(ctx,|ui|{
             ui.vertical_centered(|ui|{
