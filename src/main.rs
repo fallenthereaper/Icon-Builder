@@ -265,6 +265,8 @@ impl eframe::App for IconForgeNativeApp {
                 color_row(ui,"Secondary",&mut self.spec.bg_secondary,&mut self.needs_rerender);
                 color_row(ui,"Accent",&mut self.spec.bg_accent,&mut self.needs_rerender);
                 slider(ui,"Gradient angle",&mut self.spec.gradient_angle_deg,0.0..=360.0,&mut self.needs_rerender);
+                ui.checkbox(&mut self.spec.bg_noise,"Surface noise");
+                slider(ui,"Noise opacity",&mut self.spec.bg_noise_opacity,0.0..=0.2,&mut self.needs_rerender);
                 if !self.ico_entries.is_empty(){
                     ui.label("ICO source entries");
                     egui::ComboBox::from_id_salt("ico-entry-picker").selected_text(format!("{} × {}",self.ico_entries[self.selected_ico_entry].width,self.ico_entries[self.selected_ico_entry].height)).show_ui(ui,|ui|{
@@ -283,12 +285,20 @@ impl eframe::App for IconForgeNativeApp {
                 slider(ui,"Glyph X offset",&mut self.spec.glyph_offset_x,-80.0..=80.0,&mut self.needs_rerender);
                 slider(ui,"Glyph Y offset",&mut self.spec.glyph_offset_y,-80.0..=80.0,&mut self.needs_rerender);
                 slider(ui,"Glyph rotation",&mut self.spec.glyph_rotation,-180.0..=180.0,&mut self.needs_rerender);
+                ui.checkbox(&mut self.spec.glyph_shadow,"Glyph shadow");
+                slider(ui,"Glyph shadow blur",&mut self.spec.glyph_shadow_blur,0.0..=32.0,&mut self.needs_rerender);
+                slider(ui,"Glyph shadow opacity",&mut self.spec.glyph_shadow_opacity,0.0..=1.0,&mut self.needs_rerender);
+                ui.checkbox(&mut self.spec.glyph_emboss,"Glyph emboss");
                 color_row(ui,"Glyph colour",&mut self.spec.glyph_color,&mut self.needs_rerender);
                 if self.imported.is_some() && ui.button("Remove imported image").clicked(){self.imported=None;self.imported_name=None;self.ico_entries.clear();self.selected_ico_entry=0;self.needs_rerender=true;}
                 ui.separator();
                 ui.label(egui::RichText::new("LIGHTING & SHADOWS").strong());
                 egui::ComboBox::from_id_salt("lighting-mode").selected_text(&self.spec.lighting).show_ui(ui,|ui|{for mode in ["macos-specular","glass-reflex","chamfer-edge","subtle","none"]{if ui.selectable_value(&mut self.spec.lighting,mode.into(),mode).changed(){self.needs_rerender=true;}}});
                 slider(ui,"Rim light",&mut self.spec.rim_light_opacity,0.0..=1.0,&mut self.needs_rerender);
+                slider(ui,"Bevel thickness",&mut self.spec.bevel_thickness,0.0..=8.0,&mut self.needs_rerender);
+                slider(ui,"Glass reflex",&mut self.spec.reflex_opacity,0.0..=1.0,&mut self.needs_rerender);
+                slider(ui,"Inner shadow",&mut self.spec.inner_shadow_opacity,0.0..=1.0,&mut self.needs_rerender);
+                color_row(ui,"Shadow colour",&mut self.spec.shadow_color,&mut self.needs_rerender);
                 egui::ComboBox::from_id_salt("shadow-mode").selected_text(&self.spec.shadow_mode).show_ui(ui,|ui|{for mode in ["macos-dual","winui-diffuse","elevated-3d","flat","none"]{if ui.selectable_value(&mut self.spec.shadow_mode,mode.into(),mode).changed(){self.needs_rerender=true;}}});
                 slider(ui,"Shadow blur",&mut self.spec.shadow_blur,0.0..=64.0,&mut self.needs_rerender);
                 slider(ui,"Shadow offset",&mut self.spec.shadow_offset_y,0.0..=48.0,&mut self.needs_rerender);
