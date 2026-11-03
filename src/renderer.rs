@@ -324,6 +324,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_original_vector_glyph_renders_from_its_svg_path() {
+        for name in ["Layers","Terminal","Code2","Cpu","Database","Rocket","ShieldCheck","Sparkles","CloudLightning","Box","Globe","Gamepad2"] {
+            let mask=rasterize_builtin_glyph_mask(name,128,0.62).expect("known glyph should rasterize");
+            let visible=mask.iter().filter(|alpha|**alpha>16).count();
+            assert!(visible>20,"{name} should produce visible vector coverage");
+        }
+    }
+
+    #[test]
+    fn unknown_glyph_names_keep_the_fallback_renderer() {
+        assert!(builtin_glyph_paths("not-a-real-glyph").is_none());
+    }
+
+    #[test]
     fn renders_requested_dimensions() {
         let image = render_icon(&IconSpec::default(), 128, None, "Layers");
         assert_eq!(image.dimensions(), (128, 128));
