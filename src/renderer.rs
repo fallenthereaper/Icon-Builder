@@ -174,7 +174,8 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> [f32; 3] {
     [rgb[0] + m, rgb[1] + m, rgb[2] + m]
 }
 fn png_bytes(img:&RgbaImage)->Result<Vec<u8>,Box<dyn std::error::Error>>{let mut bytes=Cursor::new(Vec::new());image::DynamicImage::ImageRgba8(img.clone()).write_to(&mut bytes,ImageFormat::Png)?;Ok(bytes.into_inner())}
-pub fn export_png(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str)->Result<(),Box<dyn std::error::Error>>{render_icon(spec,1024,custom,glyph).save_with_format(path,ImageFormat::Png)?;Ok(())}
+pub fn export_png_at_size(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str,size:u32)->Result<(),Box<dyn std::error::Error>>{render_icon(spec,size.clamp(16,1024),custom,glyph).save_with_format(path,ImageFormat::Png)?;Ok(())}
+pub fn export_png(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str)->Result<(),Box<dyn std::error::Error>>{export_png_at_size(spec,path,custom,glyph,1024)}
 pub fn export_ico(spec:&IconSpec,path:&Path,custom:Option<&RgbaImage>,glyph:&str)->Result<(),Box<dyn std::error::Error>>{
     let mut dir=ico::IconDir::new(ico::ResourceType::Icon);
     for size in [16u32,24,32,48,64,128,256]{let image=render_icon(spec,size,custom,glyph);dir.add_entry(ico::IconDirEntry::encode(&ico::IconImage::from_rgba_data(size,size,image.into_raw()))?);}
