@@ -5,7 +5,7 @@ mod packaging;
 
 use eframe::egui;
 use fastframe_fonts::{FontSetup, Weight};
-use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns, IcoEntry, parse_ico_file};
+use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns, IcoEntry, parse_ico_file, load_svg_file};
 
 
 const RESOLUTIONS: [u32; 8] = [1024, 512, 256, 128, 64, 48, 32, 16];
@@ -151,9 +151,11 @@ impl IconForgeNativeApp {
 
     fn import_image(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Images", &["png","jpg","jpeg","webp","bmp","ico"])
+            .add_filter("Images", &["png","jpg","jpeg","webp","bmp","ico","svg"])
             .pick_file() {
-            if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("ico")) {
+            if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("svg")) {
+                match load_svg_file(&path){Ok(img)=>{self.ico_entries.clear();self.imported=Some(img);self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported SVG · rasterized at up to 1024px · {}",path.display());self.needs_rerender=true;},Err(e)=>self.status_msg=format!("Could not render SVG: {e}")}
+            } else if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("ico")) {
                 match parse_ico_file(&path) {
                     Ok(entries) if !entries.is_empty() => {
                         self.ico_entries=entries;
