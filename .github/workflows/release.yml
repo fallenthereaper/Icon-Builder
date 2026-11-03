@@ -1,105 +1,63 @@
-
-name: Build Native Executables & Publish Release
+name: Windows Native Build
 
 on:
   push:
-    tags:
-      - 'v*'
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [main]
+    tags: ["v*"]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    name: Build Native Binary on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: iconforgeapp-windows-x64.exe
-            binary_path: target/release/iconforgeapp.exe
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact_name: iconforgeapp-macos-arm64
-            binary_path: target/release/iconforgeapp
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: iconforgeapp-linux-x64
-            binary_path: target/release/iconforgeapp
-
+  build-windows:
+    name: Build and test Windows x64
+    runs-on: windows-latest
     steps:
-      - name: Checkout Source Code
+      - name: Checkout source
         uses: actions/checkout@v4
-
-      - name: Setup Rust Toolchain
+      - name: Install stable Rust (MSVC)
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
-
-      - name: Install Linux Dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+          targets: x86_64-pc-windows-msvc
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-x64
+      - name: Build optimized Windows executable
+        run: cargo build --release --target x86_64-pc-windows-msvc
+      - name: Run Windows unit tests
+        run: cargo test --release --target x86_64-pc-windows-msvc
+      - name: Stage Windows executable
+        shell: pwsh
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libfontconfig1-dev libgl1-mesa-dev
-
-      - name: Build Standalone Native Executable
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Run Native Unit Tests
-        run: cargo test --release --target ${{ matrix.target }}
-
-      - name: Stage Artifact
-        shell: bash
-        run: |
-          mkdir -p dist
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cp target/${{ matrix.target }}/release/iconforgeapp.exe dist/${{ matrix.artifact_name }}
-          else
-            cp target/${{ matrix.target }}/release/iconforgeapp dist/${{ matrix.artifact_name }}
-            chmod +x dist/${{ matrix.artifact_name }}
-          fi
-
-      - name: Upload Build Artifact to GitHub
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target/x86_64-pc-windows-msvc/release/iconforgeapp.exe dist/IconForge-Windows-x64.exe
+      - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: dist/${{ matrix.artifact_name }}
+          name: IconForge-Windows-x64
+          path: dist/IconForge-Windows-x64.exe
+          if-no-files-found: error
 
-  publish-github-release:
-    name: Publish Release with Native Executables
-    needs: build-and-release
-    runs-on: ubuntu-latest
+  publish-windows-release:
+    name: Publish Windows release
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: build-windows
+    runs-on: windows-latest
     steps:
-      - name: Download All Compiled Binaries
+      - name: Download Windows executable
         uses: actions/download-artifact@v4
         with:
+          name: IconForge-Windows-x64
           path: release-artifacts
-
-      - name: Create or Update GitHub Release
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ github.ref_name || 'v1.0.0' }}
-          name: "IconForgeApp ${{ github.ref_name || 'v1.0.0' }} — Fully Native Release"
+          name: "IconForge Windows ${{ github.ref_name }}"
           body: |
-            ## Native Standalone Desktop Release
-
-            Compiled natively with zero web runtime using:
-            - **[emilk/egui](https://github.com/emilk/egui)** immediate-mode GPU framework
-            - **[fastframe.dev](https://fastframe.dev)** (`crmne/fastframe`) native typography & themes
-            - Embedded `.ico` and `.icns` assets
-
-            ### Download Binaries:
-            - **Windows**: `iconforgeapp-windows-x64.exe`
-            - **macOS (Apple Silicon)**: `iconforgeapp-macos-arm64`
-            - **Linux**: `iconforgeapp-linux-x64`
-          files: release-artifacts/**/*
+            Windows x64 native Rust release.
+            Built with Rust, egui/eframe and Fastframe. No browser runtime.
+          files: release-artifacts/IconForge-Windows-x64.exe
