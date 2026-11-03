@@ -11,6 +11,17 @@ use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, IcoEntry, p
 
 const RESOLUTIONS: [u32; 11] = [1024, 512, 256, 192, 180, 128, 64, 48, 32, 24, 16];
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct PersistedState {
+    spec: IconSpec,
+    selected_resolution: u32,
+    dark: bool,
+    zoom: f32,
+    active_preset: String,
+    glyph: String,
+    exe_metadata: pe_exe::ExeMetadata,
+}
+
 pub struct IconForgeNativeApp {
     spec: IconSpec,
     selected_resolution: u32,
@@ -68,6 +79,18 @@ impl IconForgeNativeApp {
         rendering.apply_to(&mut fonts);
         cc.egui_ctx.set_fonts(fonts);
         let mut app = Self::default();
+        if let Some(storage)=cc.storage {
+            if let Some(saved)=eframe::get_value::<PersistedState>(storage,"iconforgeapp-state") {
+                app.spec=saved.spec;
+                app.selected_resolution=if RESOLUTIONS.contains(&saved.selected_resolution){saved.selected_resolution}else{512};
+                app.dark=saved.dark;
+                app.zoom=saved.zoom.clamp(0.5,1.5);
+                app.active_preset=saved.active_preset;
+                app.glyph=saved.glyph;
+                app.exe_metadata=saved.exe_metadata;
+                app.needs_rerender=true;
+            }
+        }
         app.apply_theme(&cc.egui_ctx);
         app
     }
@@ -402,6 +425,19 @@ impl eframe::App for IconForgeNativeApp {
             });
         });
     }
+    fn save(&mut self,storage:&mut dyn eframe::Storage) {
+        let state=PersistedState {
+            spec:self.spec.clone(),
+            selected_resolution:self.selected_resolution,
+            dark:self.dark,
+            zoom:self.zoom,
+            active_preset:self.active_preset.clone(),
+            glyph:self.glyph.clone(),
+            exe_metadata:self.exe_metadata.clone(),
+        };
+        eframe::set_value(storage,"iconforgeapp-state",&state);
+    }
+
 }
 
 fn slider(ui:&mut egui::Ui,label:&str,value:&mut f32,range:std::ops::RangeInclusive<f32>,dirty:&mut bool){
