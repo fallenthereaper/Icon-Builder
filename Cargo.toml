@@ -25,6 +25,7 @@ fastframe-icons = { git = "https://github.com/crmne/fastframe", tag = "v0.15.5" 
 # Native Image & Binary Encoding Pipeline
 image = { version = "0.25", default-features = false, features = ["png", "ico", "bmp", "jpeg", "webp"] }
 ico = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 icns = "0.3"
 rfd = "0.15"
 tiny-skia = "0.11"
