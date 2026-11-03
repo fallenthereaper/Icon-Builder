@@ -269,7 +269,7 @@ impl eframe::App for IconForgeNativeApp {
                 slider(ui,"Corner radius",&mut self.spec.corner_radius,0.05..=0.48,&mut self.needs_rerender);
                 ui.separator();
                 ui.label(egui::RichText::new("BACKGROUND").strong());
-                egui::ComboBox::from_id_salt("background-style").selected_text(&self.spec.bg_style).show_ui(ui,|ui|{for style in ["linear-gradient","radial-gradient","acrylic-glass","dark-obsidian","titanium-metallic","mesh-aurora","matte-ceramic","carbon-fiber","solid"]{if ui.selectable_value(&mut self.spec.bg_style,style.into(),style).changed(){self.needs_rerender=true;}}});
+                egui::ComboBox::from_id_salt("background-style").selected_text(&self.spec.bg_style).show_ui(ui,|ui|{for style in ["linear-gradient","radial-gradient","acrylic-glass","dark-obsidian","titanium-metallic","mesh-aurora","matte-ceramic","carbon-fiber","solid","transparent"]{if ui.selectable_value(&mut self.spec.bg_style,style.into(),style).changed(){self.needs_rerender=true;}}});
                 color_row(ui,"Primary",&mut self.spec.bg_primary,&mut self.needs_rerender);
                 color_row(ui,"Secondary",&mut self.spec.bg_secondary,&mut self.needs_rerender);
                 color_row(ui,"Accent",&mut self.spec.bg_accent,&mut self.needs_rerender);
