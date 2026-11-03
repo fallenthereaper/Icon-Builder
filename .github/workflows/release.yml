@@ -1,0 +1,99 @@
+
+name: Build Native Executables & Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Native Binary on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: iconforgeapp-windows-x64.exe
+            binary_path: target/release/iconforgeapp.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: iconforgeapp-macos-arm64
+            binary_path: target/release/iconforgeapp
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: iconforgeapp-linux-x64
+            binary_path: target/release/iconforgeapp
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux Dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libasound2-dev libfontconfig1-dev
+
+      - name: Build Standalone Native Executable
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Stage Artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/iconforgeapp.exe dist/${{ matrix.artifact_name }}
+          else
+            cp target/${{ matrix.target }}/release/iconforgeapp dist/${{ matrix.artifact_name }}
+            chmod +x dist/${{ matrix.artifact_name }}
+          fi
+
+      - name: Upload Build Artifact to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}
+
+  publish-github-release:
+    name: Publish Release with Native Executables
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Compiled Binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ github.ref_name || 'v1.0.0' }}
+          name: "IconForgeApp ${{ github.ref_name || 'v1.0.0' }} — Fully Native Release"
+          body: |
+            ## Native Standalone Desktop Release
+
+            Compiled natively with zero web runtime using:
+            - **[emilk/egui](https://github.com/emilk/egui)** immediate-mode GPU framework
+            - **[fastframe.dev](https://fastframe.dev)** (`crmne/fastframe`) native typography & themes
+            - Embedded `.ico` and `.icns` assets
+
+            ### Download Binaries:
+            - **Windows**: `iconforgeapp-windows-x64.exe`
+            - **macOS (Apple Silicon)**: `iconforgeapp-macos-arm64`
+            - **Linux**: `iconforgeapp-linux-x64`
+          files: release-artifacts/**/*
