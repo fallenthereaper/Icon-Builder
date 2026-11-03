@@ -34,3 +34,29 @@ pub fn extract_palette(image:&RgbaImage)->([u8;3],[u8;3],[u8;3],[u8;3]){
  [((vivid[0]as f32)*0.65)as u8,((vivid[1]as f32)*0.65)as u8,((vivid[2]as f32)*0.70)as u8],
  [vivid[0].saturating_add(40),vivid[1].saturating_add(40),vivid[2].saturating_add(40)])
 }
+
+
+pub fn export_rust_project_zip(spec:&IconSpec,custom:Option<&RgbaImage>,glyph:&str,destination:&Path)->Result<(),Box<dyn std::error::Error>>{
+    let file=File::create(destination)?;
+    let mut zip=zip::ZipWriter::new(file);
+    let options=zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    macro_rules! add_source { ($path:expr,$source:expr) => {{zip.start_file($path,options.clone())?;zip.write_all($source.as_bytes())?;}}; }
+    add_source!("Cargo.toml",include_str!("../Cargo.toml"));
+    add_source!("build.rs",include_str!("../build.rs"));
+    add_source!("README.md",include_str!("../README.md"));
+    add_source!("src/main.rs",include_str!("main.rs"));
+    add_source!("src/renderer.rs",include_str!("renderer.rs"));
+    add_source!("src/packaging.rs",include_str!("packaging.rs"));
+    add_source!(".github/workflows/release.yml",include_str!("../.github/workflows/release.yml"));
+    let png=render_icon(spec,1024,custom,glyph);
+    let mut png_bytes=std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(png).write_to(&mut png_bytes,image::ImageFormat::Png)?;
+    zip.start_file("assets/icon_1024x1024.png",options.clone())?;zip.write_all(png_bytes.get_ref())?;
+    let temp=std::env::temp_dir().join(format!("{}_project.ico",safe_name(&spec.name)));
+    export_ico(spec,&temp,custom,glyph)?;
+    zip.start_file("assets/app_icon.ico",options.clone())?;zip.write_all(&std::fs::read(&temp)?)?;let _=std::fs::remove_file(temp);
+    let temp=std::env::temp_dir().join(format!("{}_project.icns",safe_name(&spec.name)));
+    export_icns(spec,&temp,custom,glyph)?;
+    zip.start_file("assets/app_icon.icns",options)?;zip.write_all(&std::fs::read(&temp)?)?;let _=std::fs::remove_file(temp);
+    zip.finish()?;Ok(())
+}
