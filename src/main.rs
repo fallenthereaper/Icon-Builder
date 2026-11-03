@@ -6,7 +6,7 @@ mod pe_exe;
 
 use eframe::egui;
 use fastframe_fonts::{FontSetup, Weight};
-use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns, IcoEntry, parse_ico_file, load_svg_file};
+use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, export_icns, IcoEntry, parse_ico_file, IcnsEntry, parse_icns_file, load_svg_file};
 
 
 const RESOLUTIONS: [u32; 11] = [1024, 512, 256, 192, 180, 128, 64, 48, 32, 24, 16];
@@ -30,6 +30,8 @@ pub struct IconForgeNativeApp {
     mockup_env: usize,
     ico_entries: Vec<IcoEntry>,
     selected_ico_entry: usize,
+    icns_entries: Vec<IcnsEntry>,
+    selected_icns_entry: usize,
     exe_metadata: pe_exe::ExeMetadata,
 }
 
@@ -54,6 +56,8 @@ impl Default for IconForgeNativeApp {
             mockup_env: 0,
             ico_entries: Vec::new(),
             selected_ico_entry: 0,
+            icns_entries: Vec::new(),
+            selected_icns_entry: 0,
             exe_metadata: pe_exe::ExeMetadata { file_name: "iconforge_app".into(), app_name: "IconForgeApp".into(), company_name: "Native Studio".into(), version: "1.0.0".into(), description: "Native desktop icon application".into(), window_title: "IconForgeApp".into() },
         }
     }
@@ -169,15 +173,17 @@ impl IconForgeNativeApp {
     }
 
     fn import_image(&mut self) {
-        if let Some(path)=rfd::FileDialog::new().add_filter("Images",&["png","jpg","jpeg","webp","bmp","ico","svg"]).pick_file(){
+        if let Some(path)=rfd::FileDialog::new().add_filter("Images",&["png","jpg","jpeg","webp","bmp","ico","icns","svg"]).pick_file(){
             self.load_image_path(&path);
         }
     }
 
     fn load_image_path(&mut self,path:&std::path::Path){
-        if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("svg")){
+        if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("icns")){
+            match parse_icns_file(path){Ok(entries) if !entries.is_empty()=>{self.icns_entries=entries;self.selected_icns_entry=0;self.imported=Some(self.icns_entries[0].image.clone());self.ico_entries.clear();self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported ICNS · {} embedded image chunks",self.icns_entries.len());self.needs_rerender=true;},Ok(_)=>self.status_msg="ICNS file contains no supported PNG image chunks".into(),Err(e)=>self.status_msg=format!("Could not parse ICNS: {e}")}
+        }else if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("svg")){
             match load_svg_file(path){
-                Ok(img)=>{self.ico_entries.clear();self.imported=Some(img);self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported SVG · rasterized at up to 1024px · {}",path.display());self.needs_rerender=true;},
+                Ok(img)=>{self.ico_entries.clear();self.icns_entries.clear();self.imported=Some(img);self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported SVG · rasterized at up to 1024px · {}",path.display());self.needs_rerender=true;},
                 Err(e)=>self.status_msg=format!("Could not render SVG: {e}")
             }
         }else if path.extension().and_then(|x|x.to_str()).is_some_and(|x|x.eq_ignore_ascii_case("ico")){
@@ -188,7 +194,7 @@ impl IconForgeNativeApp {
             }
         }else{
             match image::open(path){
-                Ok(img)=>{self.ico_entries.clear();self.selected_ico_entry=0;self.imported=Some(img.to_rgba8());self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported {}",path.display());self.needs_rerender=true;},
+                Ok(img)=>{self.ico_entries.clear();self.selected_ico_entry=0;self.icns_entries.clear();self.selected_icns_entry=0;self.imported=Some(img.to_rgba8());self.imported_name=path.file_name().map(|n|n.to_string_lossy().to_string());self.spec.name=path.file_stem().map(|n|n.to_string_lossy().to_string()).unwrap_or_else(||"Imported".into());self.status_msg=format!("Imported {}",path.display());self.needs_rerender=true;},
                 Err(e)=>self.status_msg=format!("Could not open image: {e}")
             }
         }
@@ -282,6 +288,12 @@ impl eframe::App for IconForgeNativeApp {
                         for (index,entry) in self.ico_entries.iter().enumerate(){let label=format!("{} × {} · {} bit · {}",entry.width,entry.height,entry.bit_depth,if entry.is_png{"PNG"}else{"DIB"});if ui.selectable_value(&mut self.selected_ico_entry,index,label).changed(){self.imported=Some(self.ico_entries[index].image.clone());self.needs_rerender=true;}}
                     });
                 }
+                if !self.icns_entries.is_empty(){
+                    ui.label("ICNS source chunks");
+                    egui::ComboBox::from_id_salt("icns-entry-picker").selected_text(format!("{} · {} × {}",self.icns_entries[self.selected_icns_entry].tag,self.icns_entries[self.selected_icns_entry].width,self.icns_entries[self.selected_icns_entry].height)).show_ui(ui,|ui|{
+                        for(index,entry)in self.icns_entries.iter().enumerate(){let label=format!("{} · {} × {} · {} bytes",entry.tag,entry.width,entry.height,entry.byte_length);if ui.selectable_value(&mut self.selected_icns_entry,index,label).changed(){self.imported=Some(self.icns_entries[index].image.clone());self.needs_rerender=true;}}
+                    });
+                }
                 if let Some(source)=&self.imported{if ui.button("Auto-match palette from source").clicked(){let(a,b,c,d)=packaging::extract_palette(source);self.spec.bg_primary=a;self.spec.bg_secondary=b;self.spec.bg_accent=c;self.spec.glyph_color=d;self.needs_rerender=true;}}
                 ui.separator();
                 ui.label(egui::RichText::new("GLYPH").strong());
@@ -299,7 +311,7 @@ impl eframe::App for IconForgeNativeApp {
                 slider(ui,"Glyph shadow opacity",&mut self.spec.glyph_shadow_opacity,0.0..=1.0,&mut self.needs_rerender);
                 ui.checkbox(&mut self.spec.glyph_emboss,"Glyph emboss");
                 color_row(ui,"Glyph colour",&mut self.spec.glyph_color,&mut self.needs_rerender);
-                if self.imported.is_some() && ui.button("Remove imported image").clicked(){self.imported=None;self.imported_name=None;self.ico_entries.clear();self.selected_ico_entry=0;self.needs_rerender=true;}
+                if self.imported.is_some() && ui.button("Remove imported image").clicked(){self.imported=None;self.imported_name=None;self.ico_entries.clear();self.selected_ico_entry=0;self.icns_entries.clear();self.selected_icns_entry=0;self.needs_rerender=true;}
                 ui.separator();
                 ui.label(egui::RichText::new("LIGHTING & SHADOWS").strong());
                 egui::ComboBox::from_id_salt("lighting-mode").selected_text(&self.spec.lighting).show_ui(ui,|ui|{for mode in ["macos-specular","glass-reflex","chamfer-edge","subtle","none"]{if ui.selectable_value(&mut self.spec.lighting,mode.into(),mode).changed(){self.needs_rerender=true;}}});
