@@ -60,7 +60,66 @@ fn glyph_coverage(name:&str,x:f32,y:f32,s:f32)->f32{
     v=v.max(0.0);v
 }
 
+fn system_ui_font()->Option<&'static fontdue::Font> {
+    static FONT:OnceLock<Option<fontdue::Font>>=OnceLock::new();
+    FONT.get_or_init(|| {
+        #[cfg(windows)]
+        let candidates=[r"C:\Windows\Fonts\segoeui.ttf",r"C:\Windows\Fonts\arial.ttf"];
+        #[cfg(not(windows))]
+        let candidates=[""];
+        for path in candidates {
+            if let Ok(bytes)=std::fs::read(path) {
+                if let Ok(font)=fontdue::Font::from_bytes(bytes,fontdue::FontSettings::default()) {
+                    return Some(font);
+                }
+            }
+        }
+        None
+    }).as_ref()
+}
+
+fn rasterize_text_mask(text:&str,size:u32,scale:f32)->Option<Vec<u8>> {
+    let font=system_ui_font()?;
+    let chars:Vec<char>=text.chars().take(6).collect();
+    if chars.is_empty(){return None;}
+    let mut px=(size as f32*scale.clamp(0.18,0.9)*0.88).max(6.0);
+    let mut width: f32=chars.iter().map(|ch|font.metrics(*ch,px).advance_width).sum();
+    let max_width=size as f32*0.82;
+    if width>max_width {px*=max_width/width;width=chars.iter().map(|ch|font.metrics(*ch,px).advance_width).sum();}
+    let line=font.horizontal_line_metrics(px)?;
+    let line_height=line.ascent-line.descent;
+    let baseline=(size as f32-line_height)*0.5+line.ascent;
+    let mut cursor=(size as f32-width)*0.5;
+    let mut mask=vec![0u8;(size*size) as usize];
+    for ch in chars {
+        let (metrics,bitmap)=font.rasterize(ch,px);
+        let left=(cursor+metrics.xmin as f32).round() as i32;
+        let top=(baseline-metrics.ymin as f32-metrics.height as f32).round() as i32;
+        for gy in 0..metrics.height {
+            for gx in 0..metrics.width {
+                let x=left+gx as i32;
+                let y=top+gy as i32;
+                if x>=0&&y>=0&&x<size as i32&&y<size as i32 {
+                    let value=bitmap[gy*metrics.width+gx];
+                    let index=(y as u32*size+x as u32) as usize;
+                    mask[index]=mask[index].max(value);
+                }
+            }
+        }
+        cursor+=metrics.advance_width;
+    }
+    Some(mask)
+}
+
+fn text_mask_coverage(mask:&[u8],size:u32,x:f32,y:f32)->f32 {
+    let px=((x+1.0)*0.5*size as f32).floor() as i32;
+    let py=((y+1.0)*0.5*size as f32).floor() as i32;
+    if px<0||py<0||px>=size as i32||py>=size as i32 {return 0.0;}
+    mask[(py as u32*size+px as u32) as usize] as f32/255.0
+}
+
 pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)->RgbaImage{
+    let text_mask=glyph.strip_prefix("text:").and_then(|text|rasterize_text_mask(text,size,spec.glyph_scale));
     let mut out=RgbaImage::new(size,size);let half=size as f32*0.5;let radius=half*spec.tile_scale;let angle=spec.gradient_angle_deg.to_radians();
     let max_t=(angle.cos().abs()+angle.sin().abs()).max(0.001);
     out.as_mut().par_chunks_mut(size as usize * 4).enumerate().for_each(|(row_index, row)| { let y = row_index as u32; for x in 0..size {
@@ -84,14 +143,14 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
                 let gy=ny-spec.glyph_offset_y/(size as f32);
                 let rx=gx*rot.cos()-gy*rot.sin();
                 let ry=gx*rot.sin()+gy*rot.cos();
-                let cov=glyph_coverage(glyph,rx,ry,spec.glyph_scale);
+                let cov=if let Some(mask)=&text_mask{text_mask_coverage(mask,size,rx,ry)}else{glyph_coverage(glyph,rx,ry,spec.glyph_scale)};
                 if spec.glyph_shadow {
                     let off=(spec.glyph_shadow_blur/size as f32).clamp(0.006,0.08);
-                    let shadow=glyph_coverage(glyph,rx,ry-off,spec.glyph_scale);
+                    let shadow=if let Some(mask)=&text_mask{text_mask_coverage(mask,size,rx,ry-off)}else{glyph_coverage(glyph,rx,ry-off,spec.glyph_scale)};
                     if shadow>0.0 { for c in 0..3 { pixel[c]=mix(pixel[c] as f32,spec.shadow_color[c] as f32,shadow*spec.glyph_shadow_opacity) as u8; } }
                 }
                 if spec.glyph_emboss {
-                    let highlight=glyph_coverage(glyph,rx-0.012,ry-0.012,spec.glyph_scale);
+                    let highlight=if let Some(mask)=&text_mask{text_mask_coverage(mask,size,rx-0.012,ry-0.012)}else{glyph_coverage(glyph,rx-0.012,ry-0.012,spec.glyph_scale)};
                     if highlight>cov { for c in 0..3 { pixel[c]=(pixel[c] as f32+highlight*18.0).clamp(0.0,255.0) as u8; } }
                 }
                 if cov>0.0 { if pixel[3]==0 { pixel=Rgba([spec.glyph_color[0],spec.glyph_color[1],spec.glyph_color[2],(cov*255.0) as u8]); } else { for c in 0..3 { pixel[c]=mix(pixel[c] as f32,spec.glyph_color[c] as f32,cov) as u8; } } }
