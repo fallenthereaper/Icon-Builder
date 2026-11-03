@@ -65,7 +65,7 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
     for y in 0..size{for x in 0..size{
         let nx=(x as f32+0.5-half)/radius;let ny=(y as f32+0.5-half)/radius;
         let offsets=[(-0.25f32,-0.25f32),(0.25,-0.25),(-0.25,0.25),(0.25,0.25)];
-        let coverage=offsets.iter().filter(|(ox,oy)|inside(spec.shape,(nx+ox/radius)*radius,(ny+oy/radius)*radius,spec.superellipse_n,radius,spec.corner_radius)).count() as f32/4.0;
+        let coverage=offsets.iter().filter(|(ox,oy)|inside(spec.shape,(nx+*ox/radius)*radius,(ny+*oy/radius)*radius,spec.superellipse_n,radius,spec.corner_radius)).count() as f32/4.0;
         let idx=if coverage<=0.0{Rgba([0,0,0,0])}else{
             let t=(((nx*angle.cos()+ny*angle.sin())/max_t)+1.0)*0.5;
             let radial=(nx*nx+ny*ny).sqrt();
