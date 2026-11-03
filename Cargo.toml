@@ -1,6 +1,6 @@
 [package]
 name = "iconforgeapp"
-version = "1.0.0.0"
+version = "1.0.0"
 edition = "2024"
 authors = ["Native Studio"]
 description = "Native Desktop Application with Embedded Multi-Res Icon"
