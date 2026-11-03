@@ -76,7 +76,24 @@ pub fn render_icon(spec:&IconSpec,size:u32,custom:Option<&RgbaImage>,glyph:&str)
             if spec.bg_noise {let hash=((x.wrapping_mul(374761393)^y.wrapping_mul(668265263)^((x*y+17).wrapping_mul(1442695041)))&255) as f32/255.0;let noise=(hash-0.5)*spec.bg_noise_opacity*255.0;for c in 0..3{rgb[c]=(rgb[c] as f32+noise).clamp(0.0,255.0) as u8;}}
             let mut pixel=Rgba([rgb[0],rgb[1],rgb[2],255]);
             if let Some(src)=custom{let (sw,sh)=src.dimensions();let u=((nx/spec.glyph_scale+1.0)*0.5).clamp(0.0,1.0);let v=((ny/spec.glyph_scale+1.0)*0.5).clamp(0.0,1.0);let sx=(u*(sw.saturating_sub(1)) as f32) as u32;let sy=(v*(sh.saturating_sub(1)) as f32) as u32;let p=src.get_pixel(sx,sy);if p[3]>0{pixel=*p;}}
-            undefined
+            else {
+                let rot=spec.glyph_rotation.to_radians();
+                let gx=nx-spec.glyph_offset_x/(size as f32);
+                let gy=ny-spec.glyph_offset_y/(size as f32);
+                let rx=gx*rot.cos()-gy*rot.sin();
+                let ry=gx*rot.sin()+gy*rot.cos();
+                let cov=glyph_coverage(glyph,rx,ry,spec.glyph_scale);
+                if spec.glyph_shadow {
+                    let off=(spec.glyph_shadow_blur/size as f32).clamp(0.006,0.08);
+                    let shadow=glyph_coverage(glyph,rx,ry-off,spec.glyph_scale);
+                    if shadow>0.0 { for c in 0..3 { pixel[c]=mix(pixel[c] as f32,spec.shadow_color[c] as f32,shadow*spec.glyph_shadow_opacity) as u8; } }
+                }
+                if spec.glyph_emboss {
+                    let highlight=glyph_coverage(glyph,rx-0.012,ry-0.012,spec.glyph_scale);
+                    if highlight>cov { for c in 0..3 { pixel[c]=(pixel[c] as f32+highlight*18.0).clamp(0.0,255.0) as u8; } }
+                }
+                if cov>0.0 { for c in 0..3 { pixel[c]=mix(pixel[c] as f32,spec.glyph_color[c] as f32,cov) as u8; } }
+            }
             let rim=((1.0-(nx*nx+ny*ny).sqrt())*7.0).clamp(0.0,1.0)*spec.rim_light_opacity;
             let band=(nx+ny+0.65).abs();let glass=if spec.lighting=="glass-reflex"{(1.0-band*1.8).clamp(0.0,1.0)*spec.reflex_opacity}else{0.0};
             let inner=((1.0-nx.abs().max(ny.abs()))*spec.bevel_thickness*0.35).clamp(0.0,1.0)*spec.inner_shadow_opacity;
