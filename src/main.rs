@@ -217,8 +217,8 @@ impl eframe::App for IconForgeNativeApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let dropped=ctx.input(|i|i.raw.dropped_files.clone());
-        if let Some(path)=dropped.into_iter().find_map(|file|file.path().map(std::path::Path::to_path_buf)){self.load_image_path(&path);}
-        if self.needs_rerender || self.texture.is_none() { self.rebuild_preview_texture(ctx); }
+        if let Some(file)=dropped.into_iter().next(){let path=file.path().to_path_buf();self.load_image_path(&path);}
+        if self.needs_rerender || self.texture.is_none() { self.rebuild_preview_texture(&ctx); }
 
         egui::Panel::top("toolbar").exact_size(44.0).show(ui, |ui| {
             ui.horizontal_centered(|ui| {
@@ -239,7 +239,7 @@ impl eframe::App for IconForgeNativeApp {
                     if ui.button("Export ▾").clicked(){self.export("ICO");}
                     if ui.button("ICNS").clicked(){self.export("ICNS");}
                     if ui.button("PNG").clicked(){self.export("PNG");}
-                    if ui.button(if self.dark{"☼"}else{"☾"}).clicked(){self.dark=!self.dark;self.apply_theme(ctx);}
+                    if ui.button(if self.dark{"☼"}else{"☾"}).clicked(){self.dark=!self.dark;self.apply_theme(&ctx);}
                 });
             });
         });
