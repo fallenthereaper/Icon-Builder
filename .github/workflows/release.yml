@@ -54,6 +54,9 @@ jobs:
       - name: Build Standalone Native Executable
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Run Native Unit Tests
+        run: cargo test --release --target ${{ matrix.target }}
+
       - name: Stage Artifact
         shell: bash
         run: |
