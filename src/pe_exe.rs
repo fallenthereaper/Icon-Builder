@@ -1,7 +1,7 @@
 use std::io::Cursor;
 use image::{DynamicImage, ImageFormat, RgbaImage};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ExeMetadata {
     pub file_name:String,
     pub app_name:String,
