@@ -95,8 +95,8 @@ fn build_rdata_section(rva:u32,image_base:u32,meta:&ExeMetadata)->Rdata{
  write_ascii(&mut b,dll_k,"KERNEL32.dll");write_ascii(&mut b,dll_u,"USER32.dll");
  for (off,target) in [(iat_k,hn_exit),(iat_u,hn_msg),(ilt_k,hn_exit),(ilt_u,hn_msg)]{put_u32(&mut b,off,rva+target as u32);put_u32(&mut b,off+4,0);}
  for (i,(ilt,dll,iat)) in [(ilt_k,dll_k,iat_k),(ilt_u,dll_u,iat_u)].iter().enumerate(){let o=idt+i*20;put_u32(&mut b,o,rva+*ilt as u32);put_u32(&mut b,o+12,rva+*dll as u32);put_u32(&mut b,o+16,rva+*iat as u32);}
- let title=if meta.app_name.is_empty(){"IconForge Application"}else{&meta.app_name};let title:String=title.chars().take(48).collect();
- let version=if meta.version.is_empty(){"1.0.0"}else{&meta.version};let publisher=if meta.company_name.is_empty(){"Native Rust Studio"}else{&meta.company_name};
+ let title=if meta.app_name.is_empty(){"IconForge Application"}else{meta.app_name.as_str()};let title:String=title.chars().take(48).collect();
+ let version=if meta.version.is_empty(){"1.0.0"}else{meta.version.as_str()};let publisher=if meta.company_name.is_empty(){"Native Rust Studio"}else{meta.company_name.as_str()};
  let body_text=format!("{} (v{})\r\nPublisher: {}\r\n\r\nBuilt with Fastframe & egui Native Icon Packager.\r\nEmbedded RT_GROUP_ICON & multi-resolution mipmaps verified.",title,version,publisher);
  write_ascii(&mut b,caption,&title);let end=write_ascii(&mut b,body,&body_text);
  b.truncate(align_up(end,16));
