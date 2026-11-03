@@ -6,7 +6,7 @@ mod pe_exe;
 
 use eframe::egui;
 use fastframe_fonts::{FontSetup, Weight};
-use renderer::{IconSpec, Shape, render_icon, export_ico, export_png, IcoEntry, parse_ico_file, load_svg_file};
+use renderer::{IconSpec, Shape, render_icon, export_ico, export_png_at_size, IcoEntry, parse_ico_file, load_svg_file};
 
 
 const RESOLUTIONS: [u32; 11] = [1024, 512, 256, 192, 180, 128, 64, 48, 32, 24, 16];
@@ -133,7 +133,7 @@ impl IconForgeNativeApp {
     fn export(&mut self,kind:&str) {
         let extension=if kind=="PNG"{"png"}else{"ico"};
         let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}.{}",self.spec.name,extension)).add_filter(extension,&[extension]).save_file() else{return;};
-        let result=if kind=="PNG"{export_png(&self.spec,&path,self.imported.as_ref(),&self.glyph)}else{export_ico(&self.spec,&path,self.imported.as_ref(),&self.glyph)};
+        let result=if kind=="PNG"{export_png_at_size(&self.spec,&path,self.imported.as_ref(),&self.glyph,self.png_export_size)}else{export_ico(&self.spec,&path,self.imported.as_ref(),&self.glyph)};
         self.status_msg=match result{Ok(())=>format!("Exported {} · {}",kind,path.display()),Err(e)=>format!("Export failed: {e}")};
     }
 
