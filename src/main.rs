@@ -19,6 +19,8 @@ struct PersistedState {
     zoom: f32,
     active_preset: String,
     glyph: String,
+    glyph_is_text: bool,
+    glyph_text: String,
     exe_metadata: pe_exe::ExeMetadata,
 }
 
@@ -37,6 +39,8 @@ pub struct IconForgeNativeApp {
     imported: Option<image::RgbaImage>,
     imported_name: Option<String>,
     glyph: String,
+    glyph_is_text: bool,
+    glyph_text: String,
     show_mockup: bool,
     mockup_env: usize,
     ico_entries: Vec<IcoEntry>,
@@ -65,6 +69,8 @@ impl Default for IconForgeNativeApp {
             imported: None,
             imported_name: None,
             glyph: "Layers".into(),
+            glyph_is_text: false,
+            glyph_text: "Aa".into(),
             show_mockup: false,
             mockup_env: 0,
             ico_entries: Vec::new(),
@@ -93,12 +99,18 @@ impl IconForgeNativeApp {
                 app.zoom=saved.zoom.clamp(0.5,1.5);
                 app.active_preset=saved.active_preset;
                 app.glyph=saved.glyph;
+                app.glyph_is_text=saved.glyph_is_text;
+                app.glyph_text=saved.glyph_text;
                 app.exe_metadata=saved.exe_metadata;
                 app.needs_rerender=true;
             }
         }
         app.apply_theme(&cc.egui_ctx);
         app
+    }
+
+    fn glyph_source(&self)->String {
+        if self.glyph_is_text { format!("text:{}",self.glyph_text) } else { self.glyph.clone() }
     }
 
     fn apply_theme(&self, ctx: &egui::Context) {
@@ -112,7 +124,7 @@ impl IconForgeNativeApp {
 
     fn rebuild_preview_texture(&mut self, ctx: &egui::Context) {
         let size = self.selected_resolution.max(16);
-        let image = render_icon(&self.spec, size, self.imported.as_ref(), &self.glyph);
+        let image = render_icon(&self.spec, size, self.imported.as_ref(), &self.glyph_source());
         let color = egui::ColorImage::from_rgba_unmultiplied(
             [image.width() as usize, image.height() as usize],
             image.as_raw(),
@@ -122,7 +134,7 @@ impl IconForgeNativeApp {
         for mip_size in RESOLUTIONS {
             // 42px inspector thumbnails do not need full 1024px backing images.
             let preview_size=mip_size.min(128);
-            let mip=render_icon(&self.spec,preview_size,self.imported.as_ref(),&self.glyph);
+            let mip=render_icon(&self.spec,preview_size,self.imported.as_ref(),&self.glyph_source());
             let mip_color=egui::ColorImage::from_rgba_unmultiplied([preview_size as usize,preview_size as usize],mip.as_raw());
             let handle=ctx.load_texture(format!("mipmap-{mip_size}"),mip_color,egui::TextureOptions::LINEAR);
             self.mipmap_textures.push((mip_size,handle));
@@ -133,14 +145,14 @@ impl IconForgeNativeApp {
     fn export(&mut self,kind:&str) {
         let extension=if kind=="PNG"{"png"}else{"ico"};
         let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}.{}",self.spec.name,extension)).add_filter(extension,&[extension]).save_file() else{return;};
-        let result=if kind=="PNG"{export_png_at_size(&self.spec,&path,self.imported.as_ref(),&self.glyph,self.png_export_size)}else{export_ico(&self.spec,&path,self.imported.as_ref(),&self.glyph)};
+        let result=if kind=="PNG"{export_png_at_size(&self.spec,&path,self.imported.as_ref(),&self.glyph_source(),self.png_export_size)}else{export_ico(&self.spec,&path,self.imported.as_ref(),&self.glyph_source())};
         self.status_msg=match result{Ok(())=>format!("Exported {} · {}",kind,path.display()),Err(e)=>format!("Export failed: {e}")};
     }
 
     fn export_exe(&mut self) {
         let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}.exe",self.exe_metadata.file_name)).add_filter("Windows executable",&["exe"]).save_file() else{return;};
         let sizes=[16u32,32,48,64,256];
-        let result=(|| -> Result<(),Box<dyn std::error::Error>> { let mut icons=Vec::new();for size in sizes{let image=render_icon(&self.spec,size,self.imported.as_ref(),&self.glyph);icons.push(pe_exe::png_icon(size,&image)?);}let binary=pe_exe::generate_windows_ex(&icons,&self.exe_metadata)?;std::fs::write(&path,binary)?;Ok(())})();
+        let result=(|| -> Result<(),Box<dyn std::error::Error>> { let mut icons=Vec::new();for size in sizes{let image=render_icon(&self.spec,size,self.imported.as_ref(),&self.glyph_source());icons.push(pe_exe::png_icon(size,&image)?);}let binary=pe_exe::generate_windows_ex(&icons,&self.exe_metadata)?;std::fs::write(&path,binary)?;Ok(())})();
         self.status_msg=match result{Ok(())=>format!("Windows PE32 executable exported · {}",path.display()),Err(e)=>format!("EXE export failed: {e}")};
     }
 
@@ -325,11 +337,17 @@ impl eframe::App for IconForgeNativeApp {
                 if let Some(source)=&self.imported{if ui.button("Auto-match palette from source").clicked(){let(a,b,c,d)=packaging::extract_palette(source);self.spec.bg_primary=a;self.spec.bg_secondary=b;self.spec.bg_accent=c;self.spec.glyph_color=d;self.needs_rerender=true;}}
                 ui.separator();
                 ui.label(egui::RichText::new("GLYPH").strong());
-                egui::ComboBox::from_id_salt("glyph").selected_text(&self.glyph).show_ui(ui,|ui|{
-                    for g in ["Layers","Terminal","Code2","Cpu","Database","Rocket","ShieldCheck","Sparkles","CloudLightning","Box","Globe","Gamepad2"] {
-                        if ui.selectable_label(self.glyph==g,g).clicked(){self.glyph=g.into();self.needs_rerender=true;}
-                    }
-                });
+                if ui.checkbox(&mut self.glyph_is_text,"Use text emblem").changed(){self.needs_rerender=true;}
+                if self.glyph_is_text {
+                    if ui.text_edit_singleline(&mut self.glyph_text).changed(){self.needs_rerender=true;}
+                    ui.label("Uses the Windows Segoe UI font and inherits glyph scale, rotation, colour and shadow settings.");
+                } else {
+                    egui::ComboBox::from_id_salt("glyph").selected_text(&self.glyph).show_ui(ui,|ui|{
+                        for g in ["Layers","Terminal","Code2","Cpu","Database","Rocket","ShieldCheck","Sparkles","CloudLightning","Box","Globe","Gamepad2"] {
+                            if ui.selectable_label(self.glyph==g,g).clicked(){self.glyph=g.into();self.needs_rerender=true;}
+                        }
+                    });
+                }
                 slider(ui,"Glyph scale",&mut self.spec.glyph_scale,0.15..=0.9,&mut self.needs_rerender);
                 slider(ui,"Glyph X offset",&mut self.spec.glyph_offset_x,-80.0..=80.0,&mut self.needs_rerender);
                 slider(ui,"Glyph Y offset",&mut self.spec.glyph_offset_y,-80.0..=80.0,&mut self.needs_rerender);
@@ -436,7 +454,7 @@ impl eframe::App for IconForgeNativeApp {
                             ui.label("Package PNG mipmaps, ICO, generated EXE, manifest and usage notes into one ZIP.");
                             if ui.button("Create Developer ZIP…").clicked(){
                                 if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_developer_pack.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){
-                                    match packaging::export_developer_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){
+                                    match packaging::export_developer_zip(&self.spec,self.imported.as_ref(),&self.glyph_source(),&path){
                                         Ok(())=>self.status_msg=format!("Developer pack saved · {}",path.display()),
                                         Err(e)=>self.status_msg=format!("ZIP export failed: {e}")
                                     }
@@ -447,7 +465,7 @@ impl eframe::App for IconForgeNativeApp {
                             ui.label("Export a standalone Rust / egui / Fastframe project with your current icon as its starter asset.");
                             if ui.button("Create Rust Project ZIP…").clicked(){
                                 if let Some(path)=rfd::FileDialog::new().set_file_name(format!("{}_rust_project.zip",self.spec.name)).add_filter("ZIP archive",&["zip"]).save_file(){
-                                    match packaging::export_rust_project_zip(&self.spec,self.imported.as_ref(),&self.glyph,&path){
+                                    match packaging::export_rust_project_zip(&self.spec,self.imported.as_ref(),&self.glyph_source(),&path){
                                         Ok(())=>self.status_msg=format!("Rust project exported · {}",path.display()),
                                         Err(e)=>self.status_msg=format!("Rust project export failed: {e}")
                                     }
@@ -502,6 +520,8 @@ impl eframe::App for IconForgeNativeApp {
             zoom:self.zoom,
             active_preset:self.active_preset.clone(),
             glyph:self.glyph.clone(),
+            glyph_is_text:self.glyph_is_text,
+            glyph_text:self.glyph_text.clone(),
             exe_metadata:self.exe_metadata.clone(),
         };
         eframe::set_value(storage,"iconforgeapp-state",&state);
